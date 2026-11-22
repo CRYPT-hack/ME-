@@ -7,6 +7,13 @@ export function createSound() {
   let master = null;
   let enabled = read();
   const listeners = new Set();
+  /** Set once the context has run (after a user gesture), so it may be resumed later. */
+  let unlocked = false;
+  /** An app took the context for its own audio: never suspend it behind its back. */
+  let shared = false;
+  let idleTimer = 0;
+  let noise = null;
+  const IDLE_MS = 4000; // longer than the longest recipe (startup, ~2.2 s)
 
   function read() {
     try { return localStorage.getItem(KEY) !== 'off'; } catch { return true; }
@@ -19,7 +26,27 @@ export function createSound() {
     master = ctx.createGain();
     master.gain.value = 0.18;
     master.connect(ctx.destination);
+    ctx.addEventListener?.('statechange', () => { if (ctx.state === 'running') unlocked = true; });
+    if (ctx.state === 'running') unlocked = true;
     return ctx;
+  }
+
+  /** Suspend the context after a quiet spell so the audio thread can sleep. */
+  function idleSoon(ms = IDLE_MS) {
+    clearTimeout(idleTimer);
+    if (shared || !ctx) return;
+    idleTimer = setTimeout(() => {
+      if (!shared && ctx.state === 'running') Promise.resolve(ctx.suspend()).catch(() => {});
+    }, ms);
+  }
+
+  /** 0.9 s of decaying white noise, made once and reused by every whoosh. */
+  function noiseBuffer(len) {
+    if (noise) return noise;
+    noise = ctx.createBuffer(1, Math.round(ctx.sampleRate * len), ctx.sampleRate);
+    const d = noise.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+    return noise;
   }
 
   function tone(freq, start, dur, { type = 'sine', gain = 1, slide = 0 } = {}) {
@@ -53,11 +80,8 @@ export function createSound() {
     whoosh(t) {
       // filtered noise sweep for the file bombardment
       const len = 0.9;
-      const buf = ctx.createBuffer(1, ctx.sampleRate * len, ctx.sampleRate);
-      const d = buf.getChannelData(0);
-      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
       const src = ctx.createBufferSource();
-      src.buffer = buf;
+      src.buffer = noiseBuffer(len);
       const f = ctx.createBiquadFilter();
       f.type = 'bandpass';
       f.Q.value = 0.8;
@@ -77,23 +101,31 @@ export function createSound() {
     /** Play a named UI sound if sound is on and audio is unlocked. */
     play(name) {
       if (!enabled || !RECIPES[name]) return;
-      if (!ensure() || ctx.state !== 'running') return;
+      if (!ensure()) return;
+      if (ctx.state !== 'running') {
+        // idle-suspended after an earlier gesture: wake it; never before one
+        if (!unlocked || ctx.state === 'closed') return;
+        Promise.resolve(ctx.resume()).catch(() => {});
+      }
       RECIPES[name](ctx.currentTime + 0.01);
+      idleSoon();
     },
     /** Call from a user gesture to allow audio. */
     unlock() {
       if (!ensure()) return;
-      if (ctx.state === 'suspended') ctx.resume();
+      if (ctx.state === 'suspended') Promise.resolve(ctx.resume()).then(() => { unlocked = true; idleSoon(); }, () => {});
+      else idleSoon();
     },
     get enabled() { return enabled; },
     set enabled(v) {
       enabled = !!v;
       try { localStorage.setItem(KEY, enabled ? 'on' : 'off'); } catch { /* private mode */ }
+      if (!enabled) idleSoon(0);
       listeners.forEach((fn) => fn(enabled));
     },
     onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     /** Shared AudioContext for apps (music) so there is only one. */
-    context() { return ensure(); },
-    output() { ensure(); return master; },
+    context() { shared = true; clearTimeout(idleTimer); return ensure(); },
+    output() { shared = true; clearTimeout(idleTimer); ensure(); return master; },
   };
 }

@@ -10,6 +10,7 @@
 //   await m.ready;            // image loaded and sampled
 //   m.setMode('photo');       // crossfade to the grayscale photo ('pixels' back)
 //   m.replay(); m.skip();     // re-run / finish the assembly
+//   m.setPaused(true);        // e.g. the host window is covered: stop the loop
 //   m.destroy();              // stops the loop, observers and listeners
 //
 // The canvas must get its size from CSS (e.g. position:absolute; inset:0):
@@ -74,6 +75,9 @@ export function createMosaic(canvas, options = {}) {
   const pointer = { on: false, x: 0, y: 0 };
   let visible = true;
   let docVisible = !document.hidden;
+  let paused = false;       // set by the host (e.g. window covered by another)
+  let layoutW = 0, layoutH = 0; // canvas size the tiles were laid out for
+  let resizeTimer = 0;
   let raf = 0;
   let lastT = 0;
   let skipToggle = false;
@@ -98,6 +102,7 @@ export function createMosaic(canvas, options = {}) {
   }
 
   function resample() {
+    layoutW = W; layoutH = H;
     if (!img || W < 8 || H < 8) { n = 0; return; }
     cell = Math.max(3, pickCell());
     cols = Math.max(1, Math.floor((W - o.gap) / cell));
@@ -228,7 +233,7 @@ export function createMosaic(canvas, options = {}) {
   function buildPhoto() {
     if (!img || !crop || W < 8) return;
     const c = document.createElement('canvas');
-    c.width = canvas.width; c.height = canvas.height;
+    c.width = Math.max(1, Math.round(layoutW * dpr)); c.height = Math.max(1, Math.round(layoutH * dpr));
     const g = c.getContext('2d', { willReadFrequently: true });
     g.fillStyle = o.background;
     g.fillRect(0, 0, c.width, c.height);
@@ -252,7 +257,7 @@ export function createMosaic(canvas, options = {}) {
 
   // ── animation ─────────────────────────────────────────────
   function canRun() {
-    return !destroyed && visible && docVisible && img && n > 0;
+    return !destroyed && !paused && visible && docVisible && img && n > 0;
   }
 
   function maybeStart() {
@@ -366,6 +371,11 @@ export function createMosaic(canvas, options = {}) {
     ctx.fillStyle = o.background;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     if (!n || (!started && !o.reducedMotion)) return;
+    // mid-resize the layout is stale: scale it to fit until resample() runs
+    if (layoutW && (layoutW !== W || layoutH !== H)) {
+      const k = Math.min(W / layoutW, H / layoutH);
+      ctx.setTransform(k, 0, 0, k, (W - layoutW * k) / 2 * dpr, (H - layoutH * k) / 2 * dpr);
+    }
     if (o.reducedMotion && !started) started = true;
 
     const fade = mix * mix * (3 - 2 * mix);
@@ -486,16 +496,27 @@ export function createMosaic(canvas, options = {}) {
   canvas.addEventListener('pointerup', onUp);
 
   // ── observers ─────────────────────────────────────────────
-  const ro = new ResizeObserver(() => {
+  function relayout() {
+    resizeTimer = 0;
     if (destroyed) return;
-    const pw = W, ph = H;
     measure();
-    if (Math.abs(pw - W) < 0.5 && Math.abs(ph - H) < 0.5 && n) { draw(); return; }
     resample();
     if (started && !flying) snapHome();
     maybeStart();
     draw();
     kick();
+  }
+  // A drag-resize fires this on every move: rescale the old layout meanwhile
+  // and only resample once the size has settled.
+  const ro = new ResizeObserver(() => {
+    if (destroyed) return;
+    const pw = W, ph = H, pd = dpr;
+    measure();
+    if (Math.abs(pw - W) < 0.5 && Math.abs(ph - H) < 0.5 && n) { draw(); return; }
+    clearTimeout(resizeTimer);
+    if (!n || pd !== dpr) { relayout(); return; }
+    draw();
+    resizeTimer = setTimeout(relayout, 140);
   });
   ro.observe(canvas);
 
@@ -531,6 +552,13 @@ export function createMosaic(canvas, options = {}) {
       kick();
     },
     getMode: () => mode,
+    setPaused(p) {
+      p = !!p;
+      if (p === paused) return;
+      paused = p;
+      if (paused) { if (raf) cancelAnimationFrame(raf); raf = 0; }
+      else kick();
+    },
     replay() {
       if (!img) return;
       mode = 'pixels'; mix = 0;
@@ -549,9 +577,10 @@ export function createMosaic(canvas, options = {}) {
     },
     isAssembling: () => flying || (!started && !o.reducedMotion && !!img),
     count: () => n,
-    resize() { measure(); resample(); if (started && !flying) snapHome(); draw(); kick(); },
+    resize() { clearTimeout(resizeTimer); resizeTimer = 0; measure(); resample(); if (started && !flying) snapHome(); draw(); kick(); },
     destroy() {
       destroyed = true;
+      clearTimeout(resizeTimer);
       if (raf) cancelAnimationFrame(raf);
       raf = 0;
       ro.disconnect();

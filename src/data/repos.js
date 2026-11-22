@@ -70,7 +70,7 @@ export const repos = [
       'Reads a live video feed, detects and tracks trucks with RF-DETR, and saves a snapshot, a crop and a short clip for every one. A small HTTP API serves it all with a live annotated stream and a dashboard.',
     languages: ['Python', 'RF-DETR', 'PyTorch', 'TypeScript', 'React'],
     updated: '2026-11-07',
-    private: true,
+    private: false,
     featured: true,
     page: 'projects/sky-eye/',
     cover: 'scan',

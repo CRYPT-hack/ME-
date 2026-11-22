@@ -244,6 +244,14 @@
 
 .app-home .tv__below { display: grid; justify-items: center; gap: 8px; margin-top: 14px; text-align: center; }
 .app-home .tv__dots { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
+.app-home .tv__controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 10px; }
+.app-home .tv__pause {
+  min-width: 64px; min-height: 28px; padding: 2px 12px;
+  border: 1px solid #b9c2d0; border-radius: 999px; background: #f4f6fa; color: var(--ink-2);
+  font: 600 11px/1 var(--font-mono); letter-spacing: .08em; text-transform: uppercase;
+}
+.app-home .tv__pause:hover { background: #e7ebf2; }
+.app-home .tv__pause[aria-pressed='true'] { border-color: var(--ok); color: var(--ok); }
 .app-home .tv__dot {
   position: relative; width: 28px; height: 28px; padding: 0; border: 0; background: none;
 }
@@ -282,6 +290,10 @@
   transition: background .15s, border-color .15s, color .15s;
 }
 .app-home .hm-chip:hover { background: var(--select); border-color: var(--select); color: #fff; }
+@media (pointer: coarse) {
+  .app-home .hm-chip { min-height: 32px; padding: 4px 12px; }
+  .app-home .tv__pause { min-height: 32px; }
+}
 .app-home .hm-chip__lock { font-size: 7px; color: #c48a00; }
 .app-home .hm-chip:hover .hm-chip__lock { color: #ffe08a; }
 

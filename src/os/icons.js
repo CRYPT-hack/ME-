@@ -104,9 +104,13 @@ const ICONS = {
     <path d="M11 4h18l9 9v31H11z" fill="url(#${u}p)" stroke="#7d8590" stroke-width="1.2" stroke-linejoin="round"/>
     <rect x="15" y="19" width="19" height="17" fill="#8fd0ff"/>
     <path d="m15 36 6-8 4 5 3-3 6 6z" fill="#49a83d"/><circle cx="29" cy="24" r="2.4" fill="#ffd34d"/>`,
-  github: (u) => `
+  // generic "repository" glyph (a branch on a dark disc), not a vendor logo
+  github: () => `
     <circle cx="24" cy="24" r="19" fill="#1b1f24"/>
-    <path fill="#fff" d="M24 11a13 13 0 0 0-4.1 25.3c.6.1.9-.3.9-.6v-2.3c-3.6.8-4.4-1.6-4.4-1.6-.6-1.5-1.4-1.9-1.4-1.9-1.2-.8.1-.8.1-.8 1.3.1 2 1.3 2 1.3 1.2 2 3.1 1.4 3.8 1.1.1-.8.5-1.4.8-1.7-2.9-.3-5.9-1.4-5.9-6.4 0-1.4.5-2.6 1.3-3.5-.1-.3-.6-1.6.1-3.4 0 0 1.1-.3 3.6 1.3a12.4 12.4 0 0 1 6.5 0c2.5-1.7 3.6-1.3 3.6-1.3.7 1.8.3 3.1.1 3.4.8.9 1.3 2.1 1.3 3.5 0 5-3 6.1-5.9 6.4.5.4.9 1.2.9 2.4v3.6c0 .3.2.7.9.6A13 13 0 0 0 24 11z"/>`,
+    <path d="M18 17v14M31 20c0 7-13 4-13 11" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/>
+    <circle cx="18" cy="15" r="3.4" fill="#1b1f24" stroke="#fff" stroke-width="2.4"/>
+    <circle cx="18" cy="33.5" r="3.4" fill="#1b1f24" stroke="#fff" stroke-width="2.4"/>
+    <circle cx="31" cy="17" r="3.4" fill="#1b1f24" stroke="#fff" stroke-width="2.4"/>`,
   computer: (u) => `
     <defs>${lin(u + 's', [[0, '#6fd0ff'], [1, '#1f6fd0']])}</defs>
     <rect x="5" y="6" width="38" height="27" rx="2.5" fill="#e6ebf1" stroke="#5b6f8a" stroke-width="1.2"/>

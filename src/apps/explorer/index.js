@@ -11,7 +11,7 @@ import { profile } from '../../data/profile.js';
 import { bombard, preloadBombard } from '../../lib/bombard.js';
 import { repoCover, folderThumb, imageThumb, preloadPhotos, langColor } from './covers.js';
 
-const BASE = 'C:\\Users\\Shobhit\\Projects';
+const BASE = 'C:\\Users\\shobhit\\Projects';
 const ROOT_NAME = 'Projects';
 const bySlug = Object.fromEntries(repos.map((r) => [r.slug, r]));
 const primaryLangs = [...new Set(repos.map((r) => r.languages[0]))].sort((a, b) => a.localeCompare(b));
@@ -19,7 +19,7 @@ const primaryLangs = [...new Set(repos.map((r) => r.languages[0]))].sort((a, b) 
 const GROUPS = {
   featured: { name: 'Featured', note: 'The ones I would show you first', list: () => repos.filter((r) => r.featured) },
   public: { name: 'Public', note: 'Open on GitHub, read the code', list: () => repos.filter((r) => !r.private) },
-  private: { name: 'Private', note: 'Not public yet, but you can read about them', list: () => repos.filter((r) => r.private) },
+  private: { name: 'Private', note: 'Private: the code is not public, but you can read about them', list: () => repos.filter((r) => r.private) },
   languages: { name: 'By language', note: 'Grouped by main language', list: () => [] },
 };
 
@@ -393,7 +393,7 @@ export function mount(body, ctx) {
       out.push(link(it.kind === 'url' ? 'globe' : it.kind === 'image' ? 'file-image' : it.kind === 'folder' || it.kind === 'repo' ? 'folder-open' : 'file-text', label, () => openItem(it)));
       if (it.kind === 'repo') out.push(link('file-text', 'Read the README', () => os.open('viewer', { kind: 'repo', slug: it.repo.slug })));
     } else if (s.length > 1) {
-      out.push(link('folder-open', `Open ${s.length} items`, () => s.forEach(openItem)));
+      out.push(link('folder-open', `Open ${s.length} items`, () => openMany(s)));
       out.push(link('file', 'Clear the selection', () => { sel.clear(); updateSel(); }));
     } else if (currentRepo()) {
       out.push(link('file-text', 'Read the README', () => os.open('viewer', { kind: 'repo', slug: currentRepo().slug })));
@@ -443,7 +443,7 @@ export function mount(body, ctx) {
     } else {
       const f = it || (current() ? folderItem(current()) : null);
       const count = it ? it.count : items.length;
-      out.push(h('p.ex-det__tag', {}, f ? f.note : `Everything I have pushed to GitHub since ${fmtDate(stats.since)}.`));
+      out.push(h('p.ex-det__tag', {}, f ? f.note : `My projects since ${fmtDate(stats.since)}.`));
       out.push(h('dl.ex-det__dl', {},
         h('dt', {}, 'Contains'), h('dd', {}, `${count} item${count === 1 ? '' : 's'}`),
         f?.updated ? [h('dt', {}, 'Last change'), h('dd', {}, fmtDate(f.updated))] : null,
@@ -467,7 +467,7 @@ export function mount(body, ctx) {
     const gh = (one?.repo || currentRepo())?.url || null;
     win.setMenu([
       { label: 'File', items: [
-        { label: s.length > 1 ? `Open ${s.length} items` : 'Open', action: () => s.forEach(openItem), disabled: !s.length },
+        { label: s.length > 1 ? `Open ${s.length} items` : 'Open', action: () => openMany(s), disabled: !s.length },
         { label: 'View on GitHub', action: () => gh && window.open(gh, '_blank', 'noopener'), disabled: !gh },
         '-',
         { label: 'Up one level', action: () => goUp(), disabled: !path.length },
@@ -556,6 +556,18 @@ export function mount(body, ctx) {
     if (focusIdx >= 0) focusItem(focusIdx);
   }
 
+  /** Open several items: navigate into the first folder only, open the rest. */
+  function openMany(list) {
+    let went = false;
+    for (const it of list) {
+      if (it.kind === 'folder' || it.kind === 'repo') {
+        if (went) continue;
+        went = true;
+      }
+      openItem(it);
+    }
+  }
+
   function openItem(it) {
     if (!it) return;
     switch (it.kind) {
@@ -584,7 +596,7 @@ export function mount(body, ctx) {
       text: [
         'File Explorer, CRYPT OS edition',
         '',
-        `Every repository I have pushed to GitHub since ${fmtDate(stats.since)} is a folder in here: ${stats.total} of them, ${stats.public} public.`,
+        `My projects since ${fmtDate(stats.since)} are folders in here: ${stats.total} of them, ${stats.public} public.`,
         'Each one holds its README, a shortcut to GitHub when the code is public, any screenshots, and a file for each language it uses.',
         '',
         'Opening this window throws every file at you before it puts them away. That is a feature. Click or press any key to skip it.',
@@ -656,7 +668,7 @@ export function mount(body, ctx) {
       case 'Enter': {
         e.preventDefault();
         const s = selected();
-        if (s.length) s.slice(0, 6).forEach(openItem); else if (i >= 0) openItem(shown[i]);
+        if (s.length) openMany(s.slice(0, 6)); else if (i >= 0) openItem(shown[i]);
         break;
       }
       case ' ':
@@ -739,6 +751,8 @@ export function mount(body, ctx) {
     if (win.el.classList.contains('is-opening')) waits.push(wait(240));
     await Promise.all(waits);
     if (destroyed || token !== blastToken) return;
+    // minimised or sent behind another window during the wait: no show
+    if (win.isMinimized() || os.wm.active !== win) { cancelBlast(); return; }
     renderList(); // pick up screenshots that just arrived (items stay hidden)
 
     const box = view.getBoundingClientRect();
@@ -751,6 +765,11 @@ export function mount(body, ctx) {
       if (!visible || targets.length >= 120) { reveal(el, false); continue; }
       const th = it.thumb?.();
       targets.push({ x: r.left, y: r.top, w: r.width, h: r.height, key: it.key, el, image: th ? th.canvas : null, sprite: th ? null : it.icon });
+    }
+    if (!targets.length) {
+      pending = false;
+      for (const el of listEl.children) reveal(el, false);
+      return;
     }
     const from = { x: box.left + box.width / 2, y: box.top + box.height * 0.45 };
     const mine = bombard({

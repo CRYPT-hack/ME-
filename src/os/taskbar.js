@@ -6,11 +6,14 @@ import { socialLinks } from '../data/profile.js';
 
 export function createTaskbar({ root, os, onShutdown, onLogoff }) {
   const { profile } = os;
-  const startBtn = h('button.tb__start', { type: 'button', 'aria-haspopup': 'menu', 'aria-expanded': 'false' },
+  const startBtn = h('button.tb__start', { type: 'button', 'aria-haspopup': 'dialog', 'aria-expanded': 'false' },
     h('span.tb__start-logo', { html: logo() }), h('span', {}, 'start'));
   const tasks = h('ul.tb__tasks', { 'aria-label': 'Open windows' });
   const soundBtn = h('button.tb__tray-btn', { type: 'button' });
-  const ghBtn = h('a.tb__tray-btn', { href: profile.links.github, target: '_blank', rel: 'noopener', title: 'GitHub', html: icon('github', 16) });
+  // empty link = not set: hide it, like everywhere else
+  const ghBtn = profile.links.github
+    ? h('a.tb__tray-btn', { href: profile.links.github, target: '_blank', rel: 'noopener', title: 'GitHub', 'aria-label': 'GitHub', html: icon('github', 16) })
+    : null;
   const clock = h('time.tb__clock');
   const tray = h('div.tb__tray', {}, soundBtn, ghBtn, clock);
   root.append(startBtn, tasks, tray);
@@ -68,10 +71,28 @@ export function createTaskbar({ root, os, onShutdown, onLogoff }) {
   document.addEventListener('pointerdown', (e) => {
     if (open && !menu.contains(e.target) && !startBtn.contains(e.target)) setOpen(false);
   });
+  // Tab out of the menu closes it
+  menu.addEventListener('focusout', (e) => {
+    const to = e.relatedTarget;
+    if (open && to && !menu.contains(to) && !startBtn.contains(to)) setOpen(false);
+  });
+  // The Meta key toggles the menu only when it is pressed and released on its
+  // own (so Cmd+C / Cmd+V never open it), and never while typing in a field.
+  // Ctrl+Esc toggles it too.
+  let metaAlone = false;
+  const typing = (el) => !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
   document.addEventListener('keydown', (e) => {
+    if (e.key === 'Meta') { if (!e.repeat) metaAlone = true; return; }
+    metaAlone = false;
+    if (e.ctrlKey && e.key === 'Escape') { e.preventDefault(); setOpen(!open); return; }
     if (e.key === 'Escape' && open) { setOpen(false); startBtn.focus(); }
-    // the Windows / Meta key, or Ctrl+Esc, toggles the menu
-    if ((e.key === 'Meta' && !e.repeat) || (e.ctrlKey && e.key === 'Escape')) { e.preventDefault(); setOpen(!open); }
+  });
+  document.addEventListener('pointerdown', () => { metaAlone = false; }, true);
+  document.addEventListener('keyup', (e) => {
+    if (e.key !== 'Meta') return;
+    const alone = metaAlone;
+    metaAlone = false;
+    if (alone && !typing(document.activeElement)) setOpen(!open);
   });
 
   function buildStartMenu() {
@@ -99,7 +120,7 @@ export function createTaskbar({ root, os, onShutdown, onLogoff }) {
     const foot = h('footer.sm__foot', {},
       h('button.sm__foot-btn', { type: 'button', onclick: run(onLogoff) }, h('span', { html: icon('user', 20) }), 'Log Off'),
       h('button.sm__foot-btn', { type: 'button', onclick: run(onShutdown) }, h('span', { html: icon('power', 20) }), 'Shut Down'));
-    return h('div.sm', { role: 'menu', hidden: true, 'aria-label': 'Start menu' }, head, h('div.sm__cols', {}, left, right), foot);
+    return h('div.sm', { role: 'dialog', hidden: true, 'aria-label': 'Start menu' }, head, h('div.sm__cols', {}, left, right), foot);
   }
 
   return { closeMenu: () => setOpen(false) };

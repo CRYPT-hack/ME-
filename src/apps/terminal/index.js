@@ -670,18 +670,19 @@ export function mount(body, ctx) {
           if (cell * fs > H && Math.random() > 0.9) { c.y = -Math.random() * 8; c.cell = -1; c.v = 0.18 + Math.random() * 0.32; }
         }
       }
-      if (now - t0 > 12000) { stop(); return; }
+      if (now - t0 > 12000) { stop(false); return; }
       raf = requestAnimationFrame(frame);
     }
     raf = requestAnimationFrame(frame);
-    function stop() {
+    function stop(teardown) {
       cancelAnimationFrame(raf);
+      if (teardown === true) { busy = null; return; } // window closing: no focus, no output
       cvs.classList.add('is-out');
       later(() => cvs.remove(), 320);
       endBusy();
       say(S('Back in the terminal. The hamster saw everything.', 'd'));
     }
-    startBusy({ stop, resize: size });
+    startBusy({ stop: (teardown) => stop(teardown), resize: size });
   }
 
   // ── train ──────────────────────────────────────────────
@@ -712,13 +713,14 @@ export function mount(body, ctx) {
       raf = requestAnimationFrame(frame);
     }
     raf = requestAnimationFrame(frame);
-    function stop(done) {
+    function stop(done, teardown) {
       cancelAnimationFrame(raf);
       layer.remove();
+      if (teardown) { busy = null; return; } // window closing: no focus, no output
       endBusy();
       say(S(done ? 'Choo choo. (You probably meant ls.)' : 'The train has been stopped. Nobody was hurt.', 'd'));
     }
-    startBusy({ stop: () => stop(false) });
+    startBusy({ stop: (teardown) => stop(false, teardown === true) });
   }
 
   function startBusy(b) {
@@ -933,7 +935,7 @@ export function mount(body, ctx) {
       if (!busy) input.focus({ preventScroll: true });
     },
     destroy() {
-      try { busy?.stop?.(); } catch { /* ignore */ }
+      try { busy?.stop?.(true); } catch { /* ignore */ }
       busy = null;
       cancelAnimationFrame(scrollRaf);
       clearTimeout(typingTimer);

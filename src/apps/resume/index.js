@@ -171,6 +171,37 @@ export function mount(body, ctx) {
     console.warn('resume mosaic unavailable', err);
     fallback();
   }
+  // The IntersectionObserver inside the mosaic only knows about the viewport,
+  // so pause the shimmer when another window covers this one. Sample a few
+  // points of the canvas: if none of them hit this window, nobody can see it.
+  function covered() {
+    if (!canvas.isConnected) return false;
+    const r = canvas.getBoundingClientRect();
+    const l = Math.max(0, r.left), t = Math.max(0, r.top);
+    const rr = Math.min(window.innerWidth, r.right), b = Math.min(window.innerHeight, r.bottom);
+    if (rr - l < 2 || b - t < 2) return false; // off-screen: the mosaic's own observer handles it
+    for (const fx of [0.1, 0.5, 0.9]) {
+      for (const fy of [0.1, 0.5, 0.9]) {
+        const hit = document.elementFromPoint(l + (rr - l) * fx, t + (b - t) * fy);
+        if (hit && win.el.contains(hit)) return false;
+      }
+    }
+    return true;
+  }
+  let occlusionRaf = 0;
+  function checkOcclusion() {
+    if (occlusionRaf) return;
+    occlusionRaf = requestAnimationFrame(() => {
+      occlusionRaf = 0;
+      if (!document.hidden) mosaic?.setPaused(covered());
+    });
+  }
+  if (os.bus) listen(os.bus, 'windows', checkOcclusion);
+  listen(canvas, 'pointerenter', () => mosaic?.setPaused(false));
+  // other windows can be dragged over this one without a 'windows' event
+  const occlusionTimer = setInterval(checkOcclusion, 1000);
+  cleanups.push(() => { clearInterval(occlusionTimer); cancelAnimationFrame(occlusionRaf); });
+
   function fallback() {
     portrait.classList.add('is-fallback');
     seg.hidden = true;
@@ -253,7 +284,7 @@ export function mount(body, ctx) {
   // ── menu ──────────────────────────────────────────────────
   win.setMenu([
     { label: 'File', items: [
-      { label: 'Download', action: printResume },
+      { label: 'Save as PDF…', action: printResume },
       { label: 'Print…', action: printResume },
       '-',
       { label: 'Close', action: () => win.close() },

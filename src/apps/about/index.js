@@ -21,12 +21,6 @@ const CATEGORY = {
   tools: { label: 'Tools', icon: 'settings' },
 };
 
-const LEVELS = [
-  { id: 'daily', label: 'daily', bars: 3, note: 'I reach for this every day.' },
-  { id: 'often', label: 'often', bars: 2, note: 'I use this regularly.' },
-  { id: 'learning', label: 'learning', bars: 1, note: 'Still learning this one, and enjoying it.' },
-];
-
 const APPLY_JOKES = [
   ['Settings applied', 'Nothing changed. I was already running at full settings.'],
   ['Curiosity: 100%', 'It does not go any higher. I checked.'],
@@ -144,7 +138,7 @@ export function mount(body, ctx) {
         h('section.ab-block', {},
           h('h3', {}, 'Computer:'),
           h('dl.ab-specs', {},
-            spec('Processor', 'Curiosity @ 3.0 GHz, overclocked after midnight'),
+            spec('Processor', 'Curiosity @ 4.20 GHz, overclocked after midnight'),
             spec('Memory', 'Every Stack Overflow answer ever read'),
             spec('Uptime', `${uptime.toLocaleString('en-US')} days (since ${fmtDate(p.since)})`),
             spec('Installed apps', `${os.apps.length}`),
@@ -161,13 +155,12 @@ export function mount(body, ctx) {
   const rowBtns = [];
   let selectedRow = null;
 
-  const levelFor = (i, n) => (i < Math.ceil(n * 0.34) ? LEVELS[0] : i < Math.ceil(n * 0.67) ? LEVELS[1] : LEVELS[2]);
   const usedIn = (skill) => {
     const key = skill.toLowerCase().split(/\s*\/\s*/)[0];
     return repos.filter((r) => r.languages.some((l) => l.toLowerCase() === key || l.toLowerCase().startsWith(`${key} `)));
   };
 
-  function showProps(skill, lvl, cat, btn) {
+  function showProps(skill, cat, btn) {
     selectedRow?.classList.remove('is-selected');
     selectedRow = btn;
     btn.classList.add('is-selected');
@@ -178,7 +171,6 @@ export function mount(body, ctx) {
       h('dl.ab-specs', {},
         spec('Device type', CATEGORY[cat]?.label || cat),
         spec('Device status', 'This device is working properly.'),
-        spec('Usage', `${lvl.label[0].toUpperCase()}${lvl.label.slice(1)}. ${lvl.note}`),
         spec('Found in', used.length
           ? `${used.length} ${used.length === 1 ? 'repository' : 'repositories'}: ${used.slice(0, 5).map((r) => r.title).join(', ')}${used.length > 5 ? '…' : ''}`
           : 'Not tagged on a repository here yet.')));
@@ -206,17 +198,13 @@ export function mount(body, ctx) {
     h('span', {}, meta.label),
     h('span.ab-muted', {}, ` (${list.length})`));
     kids.hidden = ci >= 2;
-    list.forEach((skill, i) => {
-      const lvl = levelFor(i, list.length);
+    list.forEach((skill) => {
       const btn = h('button.ab-dev', {
         type: 'button', 'aria-pressed': 'false',
-        'aria-label': `${skill}, used ${lvl.label}`,
-        onclick: () => showProps(skill, lvl, cat, btn),
+        onclick: () => showProps(skill, cat, btn),
       },
       h('span.ab-dev__chip', { 'aria-hidden': 'true' }),
-      h('span.ab-dev__name', {}, skill),
-      h('span.ab-meter', { 'aria-hidden': 'true', dataset: { bars: String(lvl.bars) } }, h('i'), h('i'), h('i')),
-      h('span.ab-dev__lvl', { 'aria-hidden': 'true', dataset: { lvl: lvl.id } }, lvl.label));
+      h('span.ab-dev__name', {}, skill));
       rowBtns.push(btn);
       kids.append(h('li', {}, btn));
     });
@@ -225,7 +213,7 @@ export function mount(body, ctx) {
 
   props.append(h('p.ab-muted', {}, 'Select a device to see its properties.'));
   panels.skills.append(
-    h('p.ab-lead', {}, 'Listed strongest first in each group. The labels say how often I reach for each one, not a made-up percentage.'),
+    h('p.ab-lead', {}, 'Grouped by kind. Select one to see which of my repositories use it.'),
     h('div.ab-dm', {}, tree),
     props);
 
@@ -256,7 +244,7 @@ export function mount(body, ctx) {
     const total = langs.reduce((s, l) => s + l.n, 0) || 1;
     ghBody.replaceChildren(
       h('div.ab-tiles', {},
-        h('div.ab-tile', {}, h('strong', {}, String(publicRepos)), h('span', {}, 'public repos')),
+        h('div.ab-tile', {}, h('strong', {}, String(publicRepos)), h('span', {}, 'public repos, no forks')),
         h('div.ab-tile', {}, h('strong', {}, followers == null ? '—' : String(followers)), h('span', {}, 'followers')),
         h('div.ab-tile', {}, h('strong', {}, stars == null ? '—' : String(stars)), h('span', {}, 'total stars'))),
       h('h3.ab-h3', {}, 'Top languages'),
@@ -304,7 +292,7 @@ export function mount(body, ctx) {
       if (signal.aborted) return;
       const own = data.repos.filter((r) => !r.fork);
       renderGH({
-        publicRepos: data.user.public_repos,
+        publicRepos: own.length,
         followers: data.user.followers,
         stars: own.reduce((s, r) => s + r.stars, 0),
         langs: topLangs(own.map((r) => r.language)),

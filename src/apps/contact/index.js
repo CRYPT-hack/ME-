@@ -148,10 +148,11 @@ export function mount(body, ctx) {
   if (list.childElementCount) aside.append(list);
   else aside.append(h('p.ct__note', {}, 'Nothing else is linked yet. The form is the way.'));
   const clock = h('p.ct__note');
-  const updateClock = () => { clock.textContent = `It is ${clockText(profile.timezone)} for me in ${profile.location}. I usually reply within a few days.`; };
+  const updateClock = () => { clock.textContent = `It is ${clockText(profile.timezone)} for me in ${profile.location}.`; };
   updateClock();
   const clockTimer = setInterval(updateClock, 30000);
-  aside.append(h('p.ct__avail', {}, h('span.ct__dot', { 'aria-hidden': 'true' }), profile.availability), clock);
+  if (profile.availability) aside.append(h('p.ct__avail', {}, h('span.ct__dot', { 'aria-hidden': 'true' }), profile.availability));
+  aside.append(clock);
 
   // ── modal ──────────────────────────────────────────────
   const modal = h('div.ct__modal', { hidden: true });
@@ -340,8 +341,8 @@ export function mount(body, ctx) {
     openModal({
       title: copied ? 'Copied to your clipboard' : 'Here is your message',
       text: copied
-        ? `I have not put an email address on this site yet, so your message is on your clipboard instead.${github ? ' The quickest way to reach me is GitHub: paste it there and I will see it.' : ''}`
-        : `Your browser would not let me copy it, so here it is to copy by hand.${github ? ' The quickest way to reach me is GitHub.' : ''}`,
+        ? `I have not put an email address on this site yet, so nothing was sent. Your message is on your clipboard so it is not lost.${github ? ' For now you can find me and my work on GitHub.' : ''}`
+        : `Your browser would not let me copy it, and nothing was sent, so here it is to copy by hand.${github ? ' For now you can find me and my work on GitHub.' : ''}`,
       iconName: copied ? 'info' : 'warning',
       extra,
       buttons: [

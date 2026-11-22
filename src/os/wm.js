@@ -13,9 +13,15 @@ export function createWM({ layer, bus, reducedMotion }) {
   let z = 10;
   let active = null;
   let cascade = 0;
+  /** Where keyboard focus goes when the last visible window goes away. */
+  let fallbackFocus = null;
 
   function area() {
-    return { w: window.innerWidth, h: window.innerHeight - TASKBAR_H };
+    // the window layer already stops at the taskbar (including any safe-area inset)
+    return {
+      w: layer.clientWidth || window.innerWidth,
+      h: layer.clientHeight || window.innerHeight - TASKBAR_H,
+    };
   }
 
   function emit() {
@@ -25,17 +31,24 @@ export function createWM({ layer, bus, reducedMotion }) {
   function list() {
     return [...wins.values()].map((w) => ({
       id: w.id, appId: w.appId, title: w.title, icon: w.iconName,
-      minimized: w.minimized, active: w === active,
+      minimized: w.minimized, maximized: w.maximized, active: w === active,
     }));
   }
 
   function focus(w) {
-    if (!w) return;
+    if (!w) {
+      // nothing left to activate: do not leave focus on <body> or a hidden window
+      const ae = document.activeElement;
+      if (!ae || ae === document.body || !ae.isConnected || layer.contains(ae)) fallbackFocus?.();
+      return;
+    }
     if (w.minimized) restore(w);
     if (active && active !== w) active.el.classList.remove('is-active');
     active = w;
     w.el.style.zIndex = ++z;
     w.el.classList.add('is-active');
+    // keys follow the active window; an app's onFocus hook can pick a better target
+    if (!w.el.contains(document.activeElement)) w.body.focus({ preventScroll: true });
     w.hooks.focus.forEach((fn) => fn());
     emit();
   }
@@ -53,7 +66,8 @@ export function createWM({ layer, bus, reducedMotion }) {
     const s = w.el.style;
     if (w.maximized) {
       s.left = '0px'; s.top = '0px';
-      s.width = '100%'; s.height = `calc(100% - ${TASKBAR_H}px)`;
+      // the layer already ends at the taskbar
+      s.width = '100%'; s.height = '100%';
     } else {
       s.left = `${w.x}px`; s.top = `${w.y}px`;
       s.width = `${w.w}px`; s.height = `${w.h}px`;
@@ -163,10 +177,11 @@ export function createWM({ layer, bus, reducedMotion }) {
     // stacking
     el.addEventListener('pointerdown', () => { if (active !== w) focus(w); }, true);
     btnMin.addEventListener('click', (e) => { e.stopPropagation(); minimize(w); });
-    btnMax.addEventListener('click', (e) => { e.stopPropagation(); setMaximized(w, !w.maximized); });
+    // on phones every window stays maximised (it can't be moved or resized there)
+    btnMax.addEventListener('click', (e) => { e.stopPropagation(); if (!isMobile()) setMaximized(w, !w.maximized); });
     btnClose.addEventListener('click', (e) => { e.stopPropagation(); close(w); });
     bar.addEventListener('dblclick', (e) => {
-      if (e.target.closest('.win__btn')) return;
+      if (e.target.closest('.win__btn') || isMobile()) return;
       setMaximized(w, !w.maximized);
     });
 
@@ -221,7 +236,12 @@ export function createWM({ layer, bus, reducedMotion }) {
         if (dir.includes('e')) w.w = Math.max(w.minW, o.w + dx);
         if (dir.includes('s')) w.h = Math.max(w.minH, o.h + dy);
         if (dir.includes('w')) { w.w = Math.max(w.minW, o.w - dx); w.x = o.x + o.w - w.w; }
-        if (dir.includes('n')) { w.h = Math.max(w.minH, o.h - dy); w.y = Math.max(0, o.y + o.h - w.h); }
+        if (dir.includes('n')) {
+          // the bottom edge stays put: clamp the top first, then derive the height
+          const top = Math.max(0, o.y + dy);
+          w.h = Math.max(w.minH, o.y + o.h - top);
+          w.y = o.y + o.h - w.h;
+        }
         applyRect(w);
         notifyResize(w);
       };
@@ -296,6 +316,8 @@ export function createWM({ layer, bus, reducedMotion }) {
       else focus(w);
     },
     closeActive() { if (active) close(active); },
+    /** fn() is called to place keyboard focus when no window is left to focus. */
+    setFallbackFocus(fn) { fallbackFocus = fn; },
     minimizeAll() { for (const w of wins.values()) minimize(w); },
   };
 }
@@ -307,10 +329,32 @@ function renderMenu(nav, menus) {
   let openMenu = null;
   const closeAll = () => {
     openMenu?.classList.remove('is-open');
+    openMenu?.querySelector('.win__menu-btn')?.setAttribute('aria-expanded', 'false');
     openMenu = null;
     document.removeEventListener('pointerdown', outside, true);
   };
   const outside = (e) => { if (!nav.contains(e.target)) closeAll(); };
+  const itemsOf = (wrap) => [...wrap.querySelectorAll('.win__drop-item:not(:disabled)')];
+  nav.onkeydown = (e) => {
+    if (!openMenu) return;
+    const wrap = openMenu;
+    const btn = wrap.querySelector('.win__menu-btn');
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      closeAll();
+      btn.focus();
+      return;
+    }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      const list = itemsOf(wrap);
+      if (!list.length) return;
+      e.preventDefault();
+      const i = list.indexOf(document.activeElement);
+      const n = e.key === 'ArrowDown' ? (i + 1) % list.length : (i <= 0 ? list.length - 1 : i - 1);
+      list[n].focus();
+    }
+  };
   for (const m of menus) {
     const drop = h('div.win__drop', { role: 'menu' });
     for (const it of m.items || []) {
@@ -322,14 +366,18 @@ function renderMenu(nav, menus) {
     }
     const top = h('div.win__menu-top', {},
       h('button.win__menu-btn', {
-        type: 'button', 'aria-haspopup': 'true',
+        type: 'button', 'aria-haspopup': 'true', 'aria-expanded': 'false',
         onclick: (e) => {
-          const wrap = e.currentTarget.parentElement;
+          const btn = e.currentTarget;
+          const wrap = btn.parentElement;
           if (openMenu === wrap) { closeAll(); return; }
           closeAll();
           openMenu = wrap;
           wrap.classList.add('is-open');
+          btn.setAttribute('aria-expanded', 'true');
           document.addEventListener('pointerdown', outside, true);
+          // opened from the keyboard: move into the menu
+          if (e.detail === 0) itemsOf(wrap)[0]?.focus();
         },
       }, m.label),
       drop);

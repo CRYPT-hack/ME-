@@ -56,6 +56,8 @@
   font-size: 12px;
 }
 .app-explorer .ex-search__input:focus { outline: none; border-color: var(--select); box-shadow: 0 0 0 1px var(--select); }
+/* iOS zooms into inputs under 16px */
+@media (max-width: 720px) { .app-explorer .ex-search__input { font-size: 16px; } }
 
 /* ── address bar ─────────────────────────────────────────── */
 .app-explorer .ex-addr {

@@ -9,8 +9,8 @@
   --title-1: #0a5ce6;       /* title bar top */
   --title-2: #0048d6;       /* title bar middle */
   --title-3: #0a3fb4;       /* title bar bottom */
-  --title-dim-1: #7a96df;   /* inactive title bar */
-  --title-dim-2: #6c88d6;
+  --title-dim-1: #5470bd;   /* inactive title bar (white text stays ≥4.5:1) */
+  --title-dim-2: #4d69b6;
   --frame: #0832a8;         /* window border */
   --frame-dim: #7a93d8;
   --task-1: #2c6df0;
@@ -28,7 +28,7 @@
   --line-soft: #d4d0c8;
   --ink: #1d1d1f;
   --ink-2: #4a4a4f;
-  --ink-3: #7b7b80;
+  --ink-3: #65656a;         /* ≥4.5:1 on both --paper and --face */
   --link: #0b4fd1;
   --select: #316ac5;        /* selection blue */
   --select-ink: #fff;
@@ -41,6 +41,8 @@
   --shadow-win: 0 10px 34px rgba(0, 18, 60, .38), 0 2px 6px rgba(0, 0, 0, .22);
   --ease-out: cubic-bezier(.2, .8, .2, 1);
   --taskbar-h: 40px;
+  /* the taskbar's real height: its 40px plus the home-indicator inset on notched phones */
+  --taskbar-total: calc(var(--taskbar-h) + env(safe-area-inset-bottom, 0px));
   color-scheme: light;
 }
 

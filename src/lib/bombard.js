@@ -230,8 +230,7 @@ export function bombard(opts = {}) {
 
     const onKey = (e) => {
       if (e.key === 'Shift' || e.key === 'Control' || e.key === 'Alt' || e.key === 'Meta') return;
-      e.preventDefault();
-      e.stopPropagation();
+      // skip, but let the key through to whatever has focus
       finish();
     };
     const onPoint = () => finish();

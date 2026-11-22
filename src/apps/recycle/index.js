@@ -206,6 +206,7 @@ export function mount(body, ctx) {
   let items = FILES.map((f, i) => ({ ...f, when: now - f.ago * HOUR - i * 7 * 60e3 }));
   let sort = { key: 'when', dir: -1 };
   const selected = new Set();
+  const leaving = new Set(); // ids whose restore is scheduled or animating
   let active = null; // id of the keyboard cursor
   let anchor = null; // for shift-click ranges
   let previewId = null;
@@ -481,7 +482,7 @@ export function mount(body, ctx) {
     let i = 0;
     for (const id of ids) {
       const f = byId(id);
-      if (!f) continue;
+      if (!f || leaving.has(id)) continue;
       const el = rowEls.get(id);
       if (f.refuse) {
         os.sound.play('error');
@@ -493,6 +494,9 @@ export function mount(body, ctx) {
         }
         continue;
       }
+      // already on its way out: a second Restore must not fly it (and notify) twice
+      leaving.add(id);
+      selected.delete(id);
       const delay = i++ * 140;
       later(() => {
         flyOut(el, f);
@@ -504,12 +508,14 @@ export function mount(body, ctx) {
         }
       }, delay);
     }
+    paintSelection();
   }
 
   /** Throw the file's icon out of the window, collapse its row, drop it from the list. */
   function flyOut(el, f) {
     const done = () => {
       items = items.filter((x) => x.id !== f.id);
+      leaving.delete(f.id);
       selected.delete(f.id);
       rowEls.delete(f.id);
       if (active === f.id) active = order().find((id) => id !== f.id && byId(id)) || null;
@@ -595,6 +601,7 @@ export function mount(body, ctx) {
   function finishEmpty() {
     const freed = items.reduce((s, f) => s + f.size, 0);
     items = [];
+    leaving.clear();
     selected.clear();
     rowEls.clear();
     active = null;
@@ -635,6 +642,24 @@ export function mount(body, ctx) {
 
     const parts = [];
     const MAXP = 900;
+    // Prebuilt styles so the frame loop does not allocate a colour string per
+    // particle or a gradient per row: ember colour is quantised by hue band and
+    // remaining life, opacity goes through globalAlpha, and the burning front is
+    // one gradient drawn at the origin and moved with translate().
+    const HUE_BANDS = 8, LIFE_STEPS = 24;
+    const EMBER = [];
+    for (let b = 0; b < HUE_BANDS; b++) {
+      const hue = 18 + (b + 0.5) * (32 / HUE_BANDS);
+      for (let s = 0; s <= LIFE_STEPS; s++) {
+        const k = s / LIFE_STEPS;
+        EMBER.push(`hsl(${(hue + 20 * k).toFixed(1)},100%,${(45 + 22 * k).toFixed(1)}%)`);
+      }
+    }
+    const ASH = 'rgb(70,64,58)';
+    const FRONT = g.createLinearGradient(-26, 0, 6, 0);
+    FRONT.addColorStop(0, 'rgba(255,120,20,0)');
+    FRONT.addColorStop(0.7, 'rgba(255,150,40,.55)');
+    FRONT.addColorStop(1, 'rgba(255,240,180,.95)');
     let raf = 0, t0 = performance.now(), last = t0, ended = false;
     let sparks = 0;
 
@@ -648,7 +673,7 @@ export function mount(body, ctx) {
         life: 0, max: ash ? 900 + Math.random() * 700 : 500 + Math.random() * 700,
         s: ash ? 1 + Math.random() * 2.2 : 0.8 + Math.random() * 2.2,
         ash,
-        hue: 18 + Math.random() * 32,
+        band: (Math.random() * HUE_BANDS) | 0,
       });
     }
 
@@ -667,12 +692,11 @@ export function mount(body, ctx) {
           r.el.style.clipPath = `inset(0 0 0 ${(eased * 100).toFixed(2)}%)`;
           r.el.style.filter = `sepia(${Math.min(1, p * 2.2)}) saturate(${1 + p * 2}) brightness(${1 - p * 0.35})`;
           // the burning front
-          const grd = g.createLinearGradient(fx - 26, 0, fx + 6, 0);
-          grd.addColorStop(0, 'rgba(255,120,20,0)');
-          grd.addColorStop(0.7, 'rgba(255,150,40,.55)');
-          grd.addColorStop(1, 'rgba(255,240,180,.95)');
-          g.fillStyle = grd;
-          g.fillRect(fx - 26, r.y + 1, 32, r.h - 2);
+          g.save();
+          g.translate(fx, 0);
+          g.fillStyle = FRONT;
+          g.fillRect(-26, r.y + 1, 32, r.h - 2);
+          g.restore();
           const n = Math.round(dt / 5);
           for (let k = 0; k < n; k++) spawn(fx + (Math.random() - 0.6) * 10, r.y + Math.random() * r.h, Math.random() < 0.7);
           if (++sparks % 9 === 0) os.sound.play('tick');
@@ -690,17 +714,18 @@ export function mount(body, ctx) {
         q.x += q.vx * dt; q.y += q.vy * dt;
         const k = 1 - q.life / q.max;
         if (q.ash) continue;
-        const light = 45 + 22 * k;
-        g.fillStyle = `hsla(${q.hue + 20 * k},100%,${light}%,${(k * (0.6 + Math.random() * 0.4)).toFixed(3)})`;
+        g.fillStyle = EMBER[q.band * (LIFE_STEPS + 1) + Math.round(k * LIFE_STEPS)];
+        g.globalAlpha = k * (0.6 + Math.random() * 0.4);
         g.beginPath(); g.arc(q.x, q.y, q.s * (0.5 + k * 0.7), 0, Math.PI * 2); g.fill();
       }
       g.globalCompositeOperation = 'source-over';
+      g.fillStyle = ASH;
       for (const q of parts) {
         if (!q.ash) continue;
-        const k = 1 - q.life / q.max;
-        g.fillStyle = `rgba(70,64,58,${(k * 0.7).toFixed(3)})`;
+        g.globalAlpha = (1 - q.life / q.max) * 0.7;
         g.fillRect(q.x, q.y, q.s, q.s);
       }
+      g.globalAlpha = 1;
       if (allDone && !ended) {
         ended = true;
         for (const r of rows) r.el.style.visibility = 'hidden';

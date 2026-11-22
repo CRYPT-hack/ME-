@@ -21,6 +21,7 @@ export function createTV(mount, { channels, reduced, sound, loadImage, onOpen, o
   let hidden = false;
   let hovering = false;
   let focusInside = false;
+  let userPaused = false;
   let inView = true;
   let destroyed = false;
   let rot = 0;
@@ -35,6 +36,7 @@ export function createTV(mount, { channels, reduced, sound, loadImage, onOpen, o
   const noise = document.createElement('canvas');
   const ng = noise.getContext('2d');
   let noiseData = null;
+  let noiseBuf = null; // Uint32 view over noiseData, made once per resize
 
   const osd = h('span.tv__osd', { 'aria-hidden': 'true' }, 'CH 01');
   const badge = h('span.tv__badge');
@@ -74,6 +76,11 @@ export function createTV(mount, { channels, reduced, sound, loadImage, onOpen, o
   const desc = h('p.tv__desc');
   const langs = h('p.tv__langs');
   const live = h('span.sr-only', { 'aria-live': 'polite' });
+  // Visible stop for the auto-advance (WCAG 2.2.2): hover/focus pausing does
+  // nothing for touch or virtual-cursor screen-reader users.
+  const pauseBtn = h('button.tv__pause', {
+    type: 'button', 'aria-pressed': 'false', onclick: () => setUserPaused(!userPaused),
+  }, 'Pause');
 
   const tv = h('div.tv', {},
     h('div.tv__set', {},
@@ -81,7 +88,9 @@ export function createTV(mount, { channels, reduced, sound, loadImage, onOpen, o
       h('div.tv__cabinet', {}, h('div.tv__bezel', {}, screen), panel),
       h('span.tv__feet', { 'aria-hidden': 'true' })),
     h('div.tv__below', {},
-      h('div.tv__dots', { role: 'group', 'aria-label': 'Channels' }, dots),
+      h('div.tv__controls', {},
+        pauseBtn,
+        h('div.tv__dots', { role: 'group', 'aria-label': 'Channels' }, dots)),
       desc, langs),
     live);
   mount.append(tv);
@@ -125,7 +134,7 @@ export function createTV(mount, { channels, reduced, sound, loadImage, onOpen, o
 
   function paintNoise(alpha, t) {
     if (!noiseData) return;
-    const buf = new Uint32Array(noiseData.data.buffer);
+    const buf = noiseBuf;
     for (let i = 0; i < buf.length; i++) {
       const v = (Math.random() * 255) | 0;
       buf[i] = 0xff000000 | (v << 16) | (v << 8) | v;
@@ -177,7 +186,9 @@ export function createTV(mount, { channels, reduced, sound, loadImage, onOpen, o
     raf = requestAnimationFrame(frame);
   }
 
-  function go(i, dir = 1) {
+  // `announce` is false for timer advances, so the live region only speaks
+  // for changes the visitor asked for.
+  function go(i, dir = 1, announce = true) {
     if (destroyed || !n) return;
     const target = ((i % n) + n) % n;
     if (target === idx && !switching) return;
@@ -188,7 +199,7 @@ export function createTV(mount, { channels, reduced, sound, loadImage, onOpen, o
     rot += dir * 36;
     (dir > 0 ? dialUp : dialDown).style.transform = `rotate(${rot}deg)`;
     sound?.play('tick');
-    live.textContent = `Channel ${idx + 1}: ${channels[idx].title}`;
+    if (announce) live.textContent = `Channel ${idx + 1}: ${channels[idx].title}`;
     if (!reduced) osd.animate?.([{ opacity: 1, transform: 'scale(1.15)' }, { opacity: 1, transform: 'none', offset: 0.6 }, { opacity: 0.6 }], { duration: 1600, easing: 'ease-out' });
     if (reduced || hidden || !cw) {
       textSwapped = false;
@@ -203,7 +214,14 @@ export function createTV(mount, { channels, reduced, sound, loadImage, onOpen, o
     raf = requestAnimationFrame(frame);
   }
 
-  function next(dir) { go(idx + dir, dir); }
+  function next(dir, announce = true) { go(idx + dir, dir, announce); }
+
+  function setUserPaused(v) {
+    userPaused = !!v;
+    pauseBtn.textContent = userPaused ? 'Play' : 'Pause';
+    pauseBtn.setAttribute('aria-pressed', String(userPaused));
+    pauseBtn.setAttribute('aria-label', userPaused ? 'Resume channel rotation' : 'Pause channel rotation');
+  }
 
   // --- sizing ------------------------------------------------------------------
   function resize() {
@@ -217,6 +235,7 @@ export function createTV(mount, { channels, reduced, sound, loadImage, onOpen, o
     noise.width = Math.max(1, Math.ceil(cw / (3 * dpr)));
     noise.height = Math.max(1, Math.ceil(ch / (3 * dpr)));
     noiseData = ng.createImageData(noise.width, noise.height);
+    noiseBuf = new Uint32Array(noiseData.data.buffer);
     covers.clear();
     if (!switching) paintStatic();
   }
@@ -235,12 +254,12 @@ export function createTV(mount, { channels, reduced, sound, loadImage, onOpen, o
   }
 
   // --- auto-advance ------------------------------------------------------------
-  const paused = () => reduced || hidden || hovering || focusInside || !inView || n < 2;
+  const paused = () => reduced || userPaused || hidden || hovering || focusInside || !inView || n < 2;
   const timer = setInterval(() => {
     if (paused()) return;
     elapsed += STEP;
     bar.style.transform = `scaleX(${Math.min(1, elapsed / DWELL)})`;
-    if (elapsed >= DWELL) next(1);
+    if (elapsed >= DWELL) next(1, false);
   }, STEP);
 
   const io = new IntersectionObserver((es) => { inView = es[es.length - 1].isIntersecting; }, { threshold: 0.25 });
@@ -259,6 +278,8 @@ export function createTV(mount, { channels, reduced, sound, loadImage, onOpen, o
   listeners.forEach(([t, ty, fn]) => t.addEventListener(ty, fn));
 
   if (reduced) progress.hidden = true;
+  if (reduced || n < 2) pauseBtn.hidden = true; // nothing rotates, nothing to pause
+  setUserPaused(false);
   setText(channels[0], 0);
   requestAnimationFrame(() => { if (!destroyed) resize(); });
 

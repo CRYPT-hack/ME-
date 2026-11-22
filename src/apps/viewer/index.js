@@ -46,7 +46,7 @@ export function mount(body, ctx) {
 function repoView(root, { win, os }, repo) {
   win.setTitle(`${repo.title} - Viewer`);
   win.setIcon('file-text');
-  win.setStatus([`README.md`, `${repo.repo} · updated ${fmtDate(repo.updated)}`]);
+  win.setStatus([`README.md`, repo.private ? `Updated ${fmtDate(repo.updated)}` : `${repo.repo} · updated ${fmtDate(repo.updated)}`]);
   root.classList.add('vw-doc');
 
   const hero = h('canvas.vw-hero', { width: 720, height: 200, 'aria-hidden': 'true' });
@@ -66,7 +66,7 @@ function repoView(root, { win, os }, repo) {
 
   const gh = repo.url
     ? h('a.btn.btn--primary.vw-gh', { href: repo.url, target: '_blank', rel: 'noopener noreferrer' }, h('span', { html: icon('github', 16) }), 'View on GitHub')
-    : h('span.vw-badge.vw-badge--private', { title: 'The code is not public yet' }, lock(), 'Private repository');
+    : h('span.vw-badge.vw-badge--private', { title: 'Private: the code is not public' }, lock(), 'Private repository');
 
   const sections = [];
   sections.push(h('section.vw-sec', {}, h('h2', {}, 'What it is'), h('p', {}, repo.description)));
@@ -93,7 +93,7 @@ function repoView(root, { win, os }, repo) {
       h('h1.vw-title', {}, repo.title),
       h('p.vw-tagline', {}, repo.tagline),
       h('p.vw-meta', {},
-        h('span.vw-mono', {}, `CRYPT-hack/${repo.repo}`),
+        repo.private ? null : h('span.vw-mono', {}, `CRYPT-hack/${repo.repo}`),
         h('span', {}, `Updated ${fmtDate(repo.updated)}`),
         repo.private ? null : h('span.vw-badge.vw-badge--public', {}, 'Public')),
       h('div.vw-actions', {},
@@ -151,6 +151,8 @@ function imageView(root, { win, os }, { src, title }) {
   let ih = 0;
   let raf = 0;
   let ready = false;
+  let stale = false;     // a fit was skipped while the stage had no size
+  win.onFocus(() => { if (stale && ready) requestAnimationFrame(() => { if (stale) fit(); }); });
 
   function apply() {
     if (raf) return;
@@ -182,6 +184,9 @@ function imageView(root, { win, os }, { src, title }) {
 
   function fit() {
     if (!iw) return;
+    // minimised (0x0 stage): fit again when the window comes back
+    if (!stage.clientWidth) { fitted = true; stale = true; return; }
+    stale = false;
     const sw = Math.max(40, stage.clientWidth - 32);
     const sh = Math.max(40, stage.clientHeight - 32);
     z = Math.min(sw / iw, sh / ih, 1);
@@ -330,6 +335,7 @@ function imageView(root, { win, os }, { src, title }) {
   return {
     resize() {
       if (!ready) return;
+      if (!stage.clientWidth) { if (fitted) stale = true; return; }
       if (fitted) fit(); else { bounds(); apply(); }
     },
     destroy() {

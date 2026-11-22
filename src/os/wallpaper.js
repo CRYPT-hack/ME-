@@ -2,11 +2,13 @@
 // clouds, rolling grass hills, pollen) with the resident hamster sitting on
 // the near hill. Rendered with three.js on the desktop's own canvas.
 //
-// createWallpaper(canvas, { reducedMotion }) -> { setLevel(v), pulse(), dispose() }
+// createWallpaper(canvas, { reducedMotion }) -> { setLevel(v), pulse(), setHidden(on), dispose() }
 // - setLevel(0..1) is fed every frame by the music app while music plays: it
 //   is smoothed (fast attack, slow release) and drives wind, clouds, the sun
 //   halo and the hamster's bop. With no calls for a moment it settles back.
 // - pulse() is a short sun flare and gust (~0.8 s).
+// - setHidden(true) stops rendering while something opaque covers the whole
+//   desktop (boot / shut-down screens, a maximised window); false resumes.
 // - reduced motion: one static frame, re-rendered only on resize.
 // - no WebGL: the canvas gets the CSS fallback class and methods are no-ops.
 import * as THREE from 'three';
@@ -15,7 +17,7 @@ import { createMeadow } from './wallpaper/meadow.js';
 import { makeHamsterCanvas, createHamster } from './wallpaper/hamster.js';
 import { prng, smooth } from './wallpaper/noise.js';
 
-const NOOP = Object.freeze({ setLevel() {}, pulse() {}, dispose() {} });
+const NOOP = Object.freeze({ setLevel() {}, pulse() {}, setHidden() {}, dispose() {} });
 const MAX_DPR = 1.5;
 const FRAME_MS = 1000 / 61; // cap at 60fps on high refresh screens
 const FLARE_S = .8;
@@ -212,8 +214,9 @@ function build(canvas, renderer, reducedMotion) {
     render();
   }
 
+  let covered = false;
   function start() {
-    if (reducedMotion || disposed || raf || document.hidden) return;
+    if (reducedMotion || disposed || raf || document.hidden || covered) return;
     last = 0; lastFrame = 0;
     raf = requestAnimationFrame(loop);
   }
@@ -280,6 +283,11 @@ function build(canvas, renderer, reducedMotion) {
     pulse() {
       if (disposed || reducedMotion) return;
       flareAt = clock();
+    },
+    setHidden(on) {
+      if (disposed || covered === !!on) return;
+      covered = !!on;
+      if (covered) stop(); else start();
     },
     dispose() {
       if (disposed) return;

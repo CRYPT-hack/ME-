@@ -342,11 +342,10 @@ export function mount(body, ctx) {
             r.url ? null : h('span.app-steam__private', {}, 'Private repository')),
           h('small', {}, `${fmtDay(r.updated)} · ${r.languages.slice(0, 3).join(', ')}`)))));
 
+    // An empty profileUrl means "not set" (see profile.js): hide the CTA.
     const cta = steam.profileUrl
       ? h('a.btn.btn--primary.btn--big.app-steam__cta', { href: steam.profileUrl, target: '_blank', rel: 'noopener noreferrer' }, h('span', { html: icon('gamepad', 18) }), 'View my Steam profile')
-      : h('div.app-steam__cta-wrap', {},
-        h('button.btn.btn--big.app-steam__cta', { type: 'button', disabled: true, 'aria-describedby': `${id}-cta-help` }, h('span', { html: icon('gamepad', 18) }), 'View my Steam profile'),
-        h('p.app-steam__help', { id: `${id}-cta-help` }, 'Steam link coming soon'));
+      : null;
 
     panel.append(
       h('h3.app-steam__h', {}, 'Favourite games'),

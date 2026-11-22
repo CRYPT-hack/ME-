@@ -14,13 +14,34 @@ const os = createOS({ windowLayer: $('#windows'), fxLayer: $('#fx'), notifyLayer
 window.__os = import.meta.env.DEV ? os : undefined;
 
 const desktop = createDesktop({ root: $('#desk'), os });
+// closing or minimising the last window hands keyboard focus back to the desktop
+os.wm.setFallbackFocus(() => desktop.focusFirst());
+
+// the skip link's target (#desk) is not focusable: move focus to the icons
+$('.skip-link')?.addEventListener('click', (e) => { e.preventDefault(); desktop.focusFirst(); });
+
+// The wallpaper only renders while some of it can be seen: not behind the
+// boot / shut-down screens and not behind a maximised window.
+let wallCovered = { boot: true, off: false, max: false };
+function paintWallVisibility() {
+  os.wallpaper?.setHidden?.(wallCovered.boot || wallCovered.off || wallCovered.max);
+}
+function coverWall(key, on) {
+  wallCovered = { ...wallCovered, [key]: on };
+  paintWallVisibility();
+}
+os.bus.addEventListener('windows', (e) => {
+  coverWall('max', e.detail.some((w) => w.maximized && !w.minimized));
+});
 
 async function shutdown(mode) {
   // close everything, then show the off screen
   for (const w of os.wm.list()) os.wm.byId(w.id)?.close();
   document.body.classList.add('is-off');
+  coverWall('off', true);
   await runShutdown({ root: document.body, profile: os.profile, sound: os.sound, mode });
   document.body.classList.remove('is-off');
+  coverWall('off', false);
   await boot();
 }
 
@@ -34,6 +55,7 @@ import('./os/wallpaper.js')
   .then(({ createWallpaper }) => {
     wallCanvas.classList.remove('desk__wall--css');
     os.wallpaper = createWallpaper(wallCanvas, { reducedMotion: os.reducedMotion });
+    paintWallVisibility();
   })
   .catch((err) => {
     wallCanvas.classList.add('desk__wall--css');
@@ -42,8 +64,10 @@ import('./os/wallpaper.js')
 
 async function boot() {
   document.body.classList.add('is-booting');
+  coverWall('boot', true);
   await runBoot({ root: document.body, profile: os.profile, reducedMotion: os.reducedMotion });
   document.body.classList.remove('is-booting');
+  coverWall('boot', false);
   os.sound.unlock();
   os.sound.play('startup');
   desktop.show();

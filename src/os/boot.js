@@ -106,7 +106,13 @@ export function runShutdown({ root, profile, sound, mode = 'shutdown' }) {
   root.append(el);
   requestAnimationFrame(() => el.classList.add('is-in'));
   return new Promise((resolve) => {
-    const go = () => { el.remove(); resolve(); };
+    // whichever fires first wins; drop the other so nothing is left behind
+    const go = () => {
+      el.removeEventListener('pointerdown', go);
+      removeEventListener('keydown', go);
+      el.remove();
+      resolve();
+    };
     setTimeout(() => {
       el.addEventListener('pointerdown', go, { once: true });
       addEventListener('keydown', go, { once: true });

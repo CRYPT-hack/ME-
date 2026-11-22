@@ -107,6 +107,7 @@ export function mount(body, ctx) {
   const stateEl = h('span.app-music__state', {}, 'STOP');
   const trackNo = h('span.app-music__no', {}, '01');
   const shufLed = h('span.app-music__led', {}, 'SHUF');
+  shufLed.classList.toggle('is-on', shuffle); // reflect the restored setting
   const spec = h('canvas.app-music__spec', { 'aria-hidden': 'true' });
   const specWrap = h('div.app-music__spec-wrap', {}, spec);
   const lcd = h('div.app-music__lcd', {},
@@ -411,10 +412,13 @@ export function mount(body, ctx) {
     const dt = Math.min(0.1, (now - lastFrame) / 1000);
     lastFrame = now;
     const playing = state === 'playing' && engine;
-    const { l, r } = updateTime(false);
+    // While minimised, keep feeding the wallpaper but skip the window's own DOM
+    // and canvas work; the next visible frame catches the LCD and reels up.
+    const hidden = win.isMinimized();
+    const { l, r } = hidden ? { l: 1, r: 1 } : updateTime(false);
 
     // reels: the hub turns faster when its pack is small (constant tape speed)
-    if (playing && !reduced) {
+    if (playing && !reduced && !hidden) {
       rotL = (rotL + dt * 150 / l) % 360;
       rotR = (rotR + dt * 150 / r) % 360;
       hubL.style.transform = `rotate(${rotL.toFixed(1)}deg)`;
@@ -432,7 +436,7 @@ export function mount(body, ctx) {
     }
     level += (target - level) * (target > level ? 0.35 : 0.08);
     if (playing) os.wallpaper?.setLevel?.(level);
-    const active = drawSpectrum(playing, dt);
+    const active = hidden && playing ? true : drawSpectrum(playing, dt);
 
     if (playing || active) raf = requestAnimationFrame(frame);
   }

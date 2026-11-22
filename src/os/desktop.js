@@ -103,12 +103,23 @@ export function createDesktop({ root, os }) {
 
   // context menu
   let menu = null;
-  const closeMenu = () => { menu?.remove(); menu = null; };
+  let trigger = null;
+  const closeMenu = ({ refocus = false } = {}) => {
+    if (!menu) return;
+    const back = trigger;
+    menu.remove();
+    menu = null;
+    trigger = null;
+    if (refocus && back?.isConnected) back.focus();
+  };
   root.addEventListener('contextmenu', (e) => {
     if (e.target.closest('.win')) return;
     e.preventDefault();
     closeMenu();
     const li = e.target.closest('.desk__icon');
+    // where focus returns on Escape: the icon, else whatever had it, else the desktop
+    const ae = document.activeElement;
+    trigger = li || (ae && ae !== document.body ? ae : null) || items.find((i) => i.tabIndex === 0) || items[0] || null;
     const entries = li
       ? [
         ['Open', () => open(li)],
@@ -123,7 +134,18 @@ export function createDesktop({ root, os }) {
         ['View this site’s source', () => window.open('https://github.com/CRYPT-hack/ME-', '_blank', 'noopener')],
         ['About CRYPT OS', () => os.open('about')],
       ];
-    menu = h('div.ctx', { role: 'menu' });
+    menu = h('div.ctx', { role: 'menu', 'aria-label': li ? 'Icon menu' : 'Desktop menu' });
+    menu.addEventListener('keydown', (ev) => {
+      const list = [...menu.querySelectorAll('.ctx__item')];
+      const i = list.indexOf(document.activeElement);
+      let n = -1;
+      if (ev.key === 'ArrowDown') n = (i + 1) % list.length;
+      else if (ev.key === 'ArrowUp') n = i <= 0 ? list.length - 1 : i - 1;
+      else if (ev.key === 'Home') n = 0;
+      else if (ev.key === 'End') n = list.length - 1;
+      else if (ev.key === 'Tab') { ev.preventDefault(); closeMenu({ refocus: true }); return; }
+      if (n >= 0) { ev.preventDefault(); list[n].focus(); }
+    });
     for (const [label, fn] of entries) {
       if (label === '-') { menu.append(h('hr')); continue; }
       menu.append(h('button.ctx__item', { type: 'button', role: 'menuitem', onclick: () => { closeMenu(); fn(); } }, label));
@@ -135,7 +157,7 @@ export function createDesktop({ root, os }) {
     menu.querySelector('button')?.focus();
   });
   document.addEventListener('pointerdown', (e) => { if (menu && !menu.contains(e.target)) closeMenu(); });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeMenu(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && menu) closeMenu({ refocus: true }); });
 
   return {
     show() {

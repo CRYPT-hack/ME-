@@ -41,7 +41,9 @@ export function createOS({ windowLayer, fxLayer, notifyLayer }) {
       if (single && running.has(id)) {
         const r = running.get(id);
         r.win.focus();
-        r.instance?.reopen?.(args);
+        // still loading: keep the latest args and hand them over after mount
+        if (r.instance) r.instance.reopen?.(args);
+        else if (args !== undefined) r.pending = args;
         setHash(id);
         return r.win;
       }
@@ -53,9 +55,10 @@ export function createOS({ windowLayer, fxLayer, notifyLayer }) {
       });
       win.body.innerHTML = '<div class="win__loading">Loading…</div>';
       sound.play('open');
-      const entry = { win, instance: null };
+      const entry = { win, instance: null, closed: false, pending: undefined };
       if (single) running.set(id, entry);
       win.onClose(() => {
+        entry.closed = true;
         sound.play('close');
         try { entry.instance?.destroy?.(); } catch (err) { console.error(err); }
         if (running.get(id) === entry) running.delete(id);
@@ -64,11 +67,25 @@ export function createOS({ windowLayer, fxLayer, notifyLayer }) {
       setHash(id);
       try {
         const mod = await meta.load();
+        // the window was closed while the chunk loaded: do not start the app
+        if (entry.closed) return win;
         win.body.innerHTML = '';
-        entry.instance = (await mod.mount(win.body, { win, os, args })) || null;
-        if (entry.instance?.resize) win.onResize((r) => entry.instance.resize(r));
+        const instance = (await mod.mount(win.body, { win, os, args })) || null;
+        if (entry.closed) {
+          // closed while mount() was still running: tear it down now
+          try { instance?.destroy?.(); } catch (err) { console.error(err); }
+          return win;
+        }
+        entry.instance = instance;
+        if (instance?.resize) win.onResize((r) => instance.resize(r));
+        if (entry.pending !== undefined) {
+          const pending = entry.pending;
+          entry.pending = undefined;
+          instance?.reopen?.(pending);
+        }
       } catch (err) {
         console.error(err);
+        if (entry.closed) return win;
         win.body.innerHTML = `<div class="win__error">${icon('warning', 32)}<p>${esc(meta.title)} could not start.</p><pre>${esc(err?.message || err)}</pre></div>`;
         sound.play('error');
       }
@@ -87,9 +104,13 @@ export function createOS({ windowLayer, fxLayer, notifyLayer }) {
         node.classList.add('is-leaving');
         setTimeout(() => node.remove(), 250);
       };
+      // a clickable balloon puts its text in a real button so keyboards reach it
+      const body = onClick
+        ? h('button.balloon__text.balloon__act', { type: 'button' }, h('strong', {}, title), text ? h('span.balloon__p', {}, text) : null)
+        : h('div.balloon__text', {}, h('strong', {}, title), text ? h('p', {}, text) : null);
       const node = h('div.balloon', { role: 'status' },
         h('span.balloon__icon', { html: icon(ic, 20) }),
-        h('div.balloon__text', {}, h('strong', {}, title), text ? h('p', {}, text) : null),
+        body,
         h('button.balloon__x', { type: 'button', 'aria-label': 'Dismiss', onclick: (e) => { e.stopPropagation(); close(); } }, '×'));
       if (onClick) {
         node.classList.add('is-clickable');
