@@ -1,0 +1,230 @@
+/* Contact app: an early-2000s mail compose window. Scoped to .app-contact
+   (plus .app-contact-fly, the envelope that flies through the fx layer). */
+.app-contact {
+  position: relative;
+  display: flex; flex-direction: column;
+  height: 100%; min-height: 0;
+  background: var(--face);
+  color: var(--ink);
+  container-type: inline-size;
+}
+.app-contact :focus-visible { outline: 2px dotted #000; outline-offset: 1px; }
+
+/* toolbar ------------------------------------------------------------ */
+.app-contact .ct__toolbar {
+  flex: none; display: flex; align-items: stretch; gap: 2px;
+  padding: 4px 6px;
+  background: linear-gradient(#fbfaf5, #ece9d8 70%, #e2ddc8);
+  border-bottom: 1px solid #c9c4ae;
+  overflow-x: auto; scrollbar-width: none;
+}
+.app-contact .ct__toolbar::-webkit-scrollbar { display: none; }
+.app-contact .ct__tool {
+  position: relative; flex: none;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  min-width: 58px; min-height: 52px; padding: 4px 8px;
+  border: 1px solid transparent; border-radius: 3px;
+  background: none; color: var(--ink); font-size: 12px;
+}
+.app-contact .ct__tool:hover { border-color: #b8b39b; background: linear-gradient(#fff, #f1efe4); box-shadow: inset 0 -1px 0 rgba(0,0,0,.05); }
+.app-contact .ct__tool:active { background: #e3dfcc; box-shadow: inset 1px 1px 2px rgba(0,0,0,.18); }
+.app-contact .ct__tool[aria-disabled='true'] { color: #8f8f8f; }
+.app-contact .ct__tool[aria-disabled='true'] .ct__toolicon { filter: grayscale(1); opacity: .55; }
+.app-contact .ct__tool--send { font-weight: 700; color: #0b3c9c; }
+.app-contact .ct__tool--send .ct__toolicon { transition: transform .2s var(--ease-out); }
+.app-contact .ct__tool--send:hover .ct__toolicon { transform: translate(2px, -2px) rotate(-6deg); }
+.app-contact .ct__tool--small { min-width: 48px; }
+.app-contact .ct__toolicon { display: grid; place-items: center; width: 24px; height: 24px; }
+.app-contact .ct__toolicon svg { width: 22px; height: 22px; }
+.app-contact .ct__abc {
+  font: 700 11px/1 var(--font-ui); color: #1d4fbf; letter-spacing: -.02em;
+  border-bottom: 2px wavy #d8321f; height: 20px; width: auto; padding: 0 2px;
+}
+.app-contact .ct__sep { flex: none; width: 1px; margin: 6px 4px; background: #c9c4ae; box-shadow: 1px 0 #fff; }
+.app-contact .ct__grow { flex: 1 1 auto; }
+
+/* tooltips for the joke buttons */
+.app-contact .ct__tool[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute; left: 50%; top: calc(100% + 4px); z-index: 20;
+  width: max-content; max-width: 220px; padding: 4px 7px;
+  background: #ffffe1; border: 1px solid #767676; color: #000;
+  font: 11.5px/1.35 var(--font-ui); font-weight: 400; text-align: left; white-space: normal;
+  box-shadow: 2px 2px 3px rgba(0,0,0,.25);
+  opacity: 0; transform: translate(-50%, -2px); pointer-events: none;
+  transition: opacity .15s, transform .15s;
+}
+.app-contact .ct__tool[data-tip]:hover::after,
+.app-contact .ct__tool[data-tip]:focus-visible::after { opacity: 1; transform: translate(-50%, 0); transition-delay: .35s; }
+@media (hover: none) { .app-contact .ct__tool[data-tip]::after { display: none; } }
+
+/* main split --------------------------------------------------------- */
+.app-contact .ct__main {
+  flex: 1; min-height: 0;
+  display: grid; grid-template-columns: minmax(0, 1fr) 210px;
+  overflow: hidden;
+}
+.app-contact .ct__compose {
+  display: flex; flex-direction: column; min-height: 0; min-width: 0;
+  padding: 8px 8px 8px 10px; gap: 8px;
+}
+.app-contact .ct__compose.is-shake { animation: ctShake .38s ease; }
+@keyframes ctShake {
+  20% { transform: translateX(-5px); } 40% { transform: translateX(4px); }
+  60% { transform: translateX(-3px); } 80% { transform: translateX(2px); }
+}
+
+.app-contact .ct__hdr { display: grid; gap: 5px; flex: none; }
+.app-contact .ct__row { display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: start; gap: 6px; }
+.app-contact .ct__label { padding-top: 5px; text-align: right; font-size: 12px; color: var(--ink-2); }
+.app-contact .ct__ctl { min-width: 0; }
+.app-contact .ct__input { min-height: 28px; }
+.app-contact select.ct__input { padding-right: 4px; }
+.app-contact .ct__input[aria-invalid='true'], .app-contact .ct__msg[aria-invalid='true'] { border-color: #c0392b; box-shadow: 0 0 0 1px rgba(192, 57, 43, .35); }
+
+.app-contact .ct__to {
+  display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 2px 6px;
+  border: 1px solid #c2c0b4; background: #f7f6f0; color: var(--ink-2); cursor: default;
+}
+.app-contact .ct__chip {
+  display: inline-flex; align-items: center; gap: 5px; padding: 1px 9px 1px 3px;
+  border: 1px solid #9cb6e6; border-radius: 999px;
+  background: linear-gradient(#f3f7ff, #dce7fb); color: #0b3c9c; font-weight: 600; font-size: 12px;
+}
+.app-contact .ct__chipicon svg { width: 16px; height: 16px; }
+.app-contact .ct__addr { font-size: 12px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-contact .ct__err { min-height: 0; font-size: 11.5px; color: #b0281a; }
+.app-contact .ct__err:not(:empty) { margin-top: 2px; }
+
+.app-contact .ct__paper {
+  position: relative; flex: 1; min-height: 120px;
+  display: flex; flex-direction: column;
+  border: 1px solid #7f9db9; background: #fff;
+  transform-origin: 50% 0;
+  transition: transform .45s var(--ease-out), opacity .45s;
+}
+.app-contact .ct__paper:focus-within { border-color: #316ac5; box-shadow: 0 0 0 1px #316ac5; }
+.app-contact .ct__paper.is-folding { transform: perspective(700px) rotateX(55deg) scale(.6); opacity: 0; }
+.app-contact .ct__msg {
+  flex: 1; min-height: 0; resize: none;
+  border: 0; box-shadow: none; padding: 9px 11px;
+  font: 13.5px/1.55 var(--font-ui);
+  background-color: #fff;
+  background-image: repeating-linear-gradient(transparent 0 calc(1.55em - 1px), #eef1f7 calc(1.55em - 1px) 1.55em);
+  background-origin: content-box;
+  background-attachment: local;
+}
+.app-contact .ct__msg:focus { box-shadow: none; border: 0; }
+.app-contact .ct__meta {
+  flex: none; display: flex; align-items: center; gap: 10px; padding: 3px 8px;
+  border-top: 1px solid #e3e6ee; background: #fafbfd; font-size: 11px; color: var(--ink-3);
+}
+.app-contact .ct__meta .ct__err:not(:empty) { margin: 0; }
+.app-contact .ct__count { font-variant-numeric: tabular-nums; }
+.app-contact .ct__count.is-near { color: #b0281a; font-weight: 700; }
+
+/* aside -------------------------------------------------------------- */
+.app-contact .ct__aside {
+  min-width: 0; overflow: auto;
+  padding: 10px;
+  background: linear-gradient(#7ba2e7, #6487d8 40%, #5a7fd4);
+  border-left: 1px solid #4a6cc0;
+  color: #fff;
+}
+.app-contact .ct__asidetitle {
+  margin: 0 0 8px; padding: 5px 10px;
+  border-radius: 4px 4px 0 0;
+  background: linear-gradient(90deg, #fff, #c6d3f7);
+  color: #0c3aa4; font-size: 12px; font-weight: 700;
+}
+.app-contact .ct__links { display: grid; gap: 4px; margin-bottom: 10px; }
+.app-contact .ct__link {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 6px 8px; border: 1px solid transparent; border-radius: 4px;
+  background: rgba(255,255,255,.92); color: #0c3aa4; text-decoration: none; text-align: left;
+  transition: transform .15s var(--ease-out), box-shadow .15s;
+}
+.app-contact .ct__link:hover { transform: translateX(2px); box-shadow: 0 2px 6px rgba(0, 20, 80, .25); border-color: #fff; }
+.app-contact .ct__link:focus-visible { outline: 2px dotted #fff; outline-offset: 2px; }
+.app-contact .ct__linkicon { flex: none; }
+.app-contact .ct__linkicon svg { width: 20px; height: 20px; }
+.app-contact .ct__linktext { display: grid; min-width: 0; line-height: 1.25; }
+.app-contact .ct__linktext strong { font-size: 12.5px; }
+.app-contact .ct__linktext small { font-size: 11px; color: #4a5a80; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-contact .ct__note { font-size: 11.5px; line-height: 1.45; color: #eef3ff; margin-top: 8px; }
+.app-contact .ct__avail {
+  display: flex; align-items: center; gap: 7px; padding: 6px 8px;
+  border-radius: 4px; background: rgba(0, 30, 100, .25); font-size: 12px; font-weight: 600;
+}
+.app-contact .ct__dot { position: relative; width: 9px; height: 9px; border-radius: 50%; background: #7dff8a; flex: none; }
+.app-contact .ct__dot::after {
+  content: ''; position: absolute; inset: -3px; border-radius: 50%; border: 2px solid #7dff8a;
+  animation: ctPing 2.2s var(--ease-out) infinite;
+}
+@keyframes ctPing { from { transform: scale(.5); opacity: .9; } to { transform: scale(2); opacity: 0; } }
+
+/* toast -------------------------------------------------------------- */
+.app-contact .ct__toast {
+  position: absolute; left: 50%; bottom: 12px; z-index: 30;
+  max-width: min(420px, calc(100% - 24px)); padding: 8px 12px;
+  background: #ffffe1; border: 1px solid #767676; border-radius: 3px; color: #000;
+  font-size: 12px; box-shadow: 2px 3px 8px rgba(0,0,0,.25);
+  opacity: 0; transform: translate(-50%, 8px); pointer-events: none;
+  transition: opacity .2s, transform .2s var(--ease-out);
+}
+.app-contact .ct__toast.is-on { opacity: 1; transform: translate(-50%, 0); }
+
+/* modal -------------------------------------------------------------- */
+.app-contact .ct__modal {
+  position: absolute; inset: 0; z-index: 40;
+  display: grid; place-items: center; padding: 16px;
+  background: rgba(30, 40, 70, .28);
+  animation: ctFade .15s ease;
+}
+@keyframes ctFade { from { opacity: 0; } }
+.app-contact .ct__dialog {
+  width: min(400px, 100%); max-height: 100%; overflow: auto;
+  border: 1px solid var(--frame); border-radius: 7px 7px 3px 3px;
+  background: var(--face); box-shadow: var(--shadow-win);
+  animation: ctPop .2s var(--ease-out);
+  outline: none;
+}
+@keyframes ctPop { from { opacity: 0; transform: scale(.94) translateY(6px); } }
+.app-contact .ct__dialogbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 4px 4px 4px 9px; border-radius: 6px 6px 0 0;
+  background: linear-gradient(var(--title-1), var(--title-2) 50%, var(--title-3));
+  color: #fff; font-weight: 700; font-size: 12.5px; text-shadow: 0 1px 1px rgba(0,0,0,.4);
+}
+.app-contact .ct__dialogx {
+  display: grid; place-items: center; width: 22px; height: 22px; padding: 0;
+  border: 1px solid #fff; border-radius: 3px; color: #fff; font-size: 16px; line-height: 1;
+  background: linear-gradient(135deg, #f19a7c, #e2553a 55%, #c03a1e);
+}
+.app-contact .ct__dialogbody { display: flex; gap: 12px; padding: 14px 14px 8px; font-size: 12.5px; }
+.app-contact .ct__dialogbody p { line-height: 1.5; }
+.app-contact .ct__dialogicon { flex: none; }
+.app-contact .ct__dialogicon svg { width: 40px; height: 40px; }
+.app-contact .ct__fallback { margin-top: 8px; resize: vertical; font: 12px/1.45 var(--font-mono); }
+.app-contact .ct__dialogbtns { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; padding: 8px 14px 14px; }
+.app-contact .ct__dialogbtns .btn span svg { width: 16px; height: 16px; }
+
+/* narrow: stack the aside under the form ----------------------------- */
+@container (max-width: 560px) {
+  .app-contact .ct__main { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; overflow: auto; }
+  .app-contact .ct__compose { min-height: 340px; }
+  .app-contact .ct__aside { border-left: 0; border-top: 1px solid #4a6cc0; overflow: visible; }
+  .app-contact .ct__row { grid-template-columns: 54px minmax(0, 1fr); }
+}
+@media (max-width: 720px) {
+  .app-contact .ct__input, .app-contact .ct__msg { font-size: 16px; } /* no iOS zoom */
+  .app-contact .ct__tool { min-width: 52px; min-height: 48px; }
+}
+
+/* the envelope (lives in os.fx, outside the window) ------------------- */
+.app-contact-fly {
+  position: fixed; left: 0; top: 0; width: 64px; height: 44px;
+  pointer-events: none; will-change: transform, opacity;
+  filter: drop-shadow(0 6px 8px rgba(0, 20, 60, .35));
+}
+.app-contact-fly svg { width: 64px; height: 44px; }

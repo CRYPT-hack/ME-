@@ -1,0 +1,226 @@
+/* Recycle Bin. Scoped to .app-recycle (plus .app-recycle-fly in os.fx). */
+.app-recycle {
+  position: relative;
+  display: flex; flex-direction: column;
+  height: 100%; min-height: 0;
+  background: var(--paper);
+  color: var(--ink);
+  outline: none;
+  container-type: inline-size;
+}
+.app-recycle :focus-visible { outline: 2px dotted #000; outline-offset: 1px; }
+
+/* toolbar ------------------------------------------------------------ */
+.app-recycle .rb__toolbar {
+  flex: none; display: flex; align-items: center; gap: 2px;
+  padding: 3px 6px;
+  background: linear-gradient(#fbfaf5, #ece9d8 70%, #e2ddc8);
+  border-bottom: 1px solid #c9c4ae;
+  overflow-x: auto; scrollbar-width: none;
+}
+.app-recycle .rb__toolbar::-webkit-scrollbar { display: none; }
+.app-recycle .rb__tool {
+  flex: none; display: inline-flex; align-items: center; gap: 6px;
+  min-height: 32px; padding: 3px 10px 3px 6px;
+  border: 1px solid transparent; border-radius: 3px;
+  background: none; font-size: 12px; white-space: nowrap;
+}
+.app-recycle .rb__tool:hover:not(:disabled) { border-color: #b8b39b; background: linear-gradient(#fff, #f1efe4); }
+.app-recycle .rb__tool:active:not(:disabled) { background: #e3dfcc; box-shadow: inset 1px 1px 2px rgba(0,0,0,.18); }
+.app-recycle .rb__tool:disabled { color: #9a9a9a; cursor: default; }
+.app-recycle .rb__tool:disabled .rb__toolicon { filter: grayscale(1); opacity: .5; }
+.app-recycle .rb__tool--danger:not(:disabled) { font-weight: 600; }
+.app-recycle .rb__toolicon { display: grid; place-items: center; width: 22px; height: 22px; }
+.app-recycle .rb__toolicon svg { width: 20px; height: 20px; }
+.app-recycle .rb__sep { flex: none; width: 1px; height: 22px; margin: 0 4px; background: #c9c4ae; box-shadow: 1px 0 #fff; }
+
+/* main layout -------------------------------------------------------- */
+.app-recycle .rb__main { position: relative; flex: 1; min-height: 0; display: flex; overflow: hidden; }
+
+.app-recycle .rb__side {
+  display: none; flex: none; width: 200px; overflow: auto;
+  padding: 10px;
+  background: linear-gradient(#7ba2e7, #6487d8 40%, #5a7fd4);
+}
+@container (min-width: 760px) { .app-recycle .rb__side { display: block; } }
+.app-recycle .rb__box { margin-bottom: 12px; border-radius: 4px 4px 0 0; background: #d6dff7; overflow: hidden; }
+.app-recycle .rb__boxtitle {
+  padding: 5px 10px; font-size: 12px; font-weight: 700; color: #0c3aa4;
+  background: linear-gradient(90deg, #fff, #c6d3f7);
+}
+.app-recycle .rb__task {
+  display: flex; align-items: center; gap: 6px; width: 100%;
+  padding: 5px 10px; border: 0; background: none; text-align: left;
+  color: #0c3aa4; font-size: 12px;
+}
+.app-recycle .rb__task span { display: grid; flex: none; }
+.app-recycle .rb__task svg { width: 16px; height: 16px; }
+.app-recycle .rb__task:hover:not(:disabled) { text-decoration: underline; color: #2a62e0; }
+.app-recycle .rb__task:disabled { color: #7a86a8; cursor: default; }
+.app-recycle .rb__task:disabled span { filter: grayscale(1); opacity: .5; }
+.app-recycle .rb__details { display: grid; gap: 2px; padding: 8px 10px 10px; font-size: 11.5px; color: var(--ink-2); overflow-wrap: anywhere; }
+.app-recycle .rb__details strong { color: var(--ink); font-size: 12px; }
+
+/* list --------------------------------------------------------------- */
+.app-recycle .rb__list {
+  --rb-cols: minmax(150px, 1.6fr) minmax(110px, 1.3fr) 142px 78px;
+  position: relative; flex: 1; min-width: 0;
+  display: flex; flex-direction: column;
+  background: #fff;
+}
+.app-recycle .rb__head {
+  flex: none; display: grid; grid-template-columns: var(--rb-cols);
+  background: linear-gradient(#fff, #f2f1ea 70%, #e6e3d6);
+  border-bottom: 1px solid #d1cfc1;
+  transition: filter .6s;
+}
+.app-recycle .rb__head.is-scorched { filter: sepia(.6) brightness(.92); }
+.app-recycle .rb__th {
+  display: flex; align-items: center; justify-content: space-between; gap: 4px;
+  min-width: 0; padding: 3px 8px; border: 0; border-right: 1px solid #d8d5c6;
+  background: none; text-align: left; font-size: 12px; color: var(--ink);
+  white-space: nowrap; overflow: hidden;
+}
+.app-recycle .rb__th:hover { background: linear-gradient(#fff, #fbe9c5); box-shadow: inset 0 -3px 0 #f8b636; }
+.app-recycle .rb__th.is-sorted { background: linear-gradient(#fbfbf8, #efede3); }
+.app-recycle .rb__arrow { font-size: 8px; color: var(--ink-3); }
+
+.app-recycle .rb__rows {
+  flex: 1; min-height: 0; overflow: auto; outline: none;
+  padding: 2px 0 8px;
+  scrollbar-width: thin;
+}
+.app-recycle .rb__rows:focus-visible { box-shadow: inset 0 0 0 1px #316ac5; outline: none; }
+.app-recycle .rb__row {
+  display: grid; grid-template-columns: var(--rb-cols); align-items: center;
+  min-height: 24px; margin: 0 2px; border: 1px solid transparent;
+  font-size: 12px; cursor: default; user-select: none;
+  overflow: hidden;
+}
+.app-recycle .rb__row:hover { background: #eef3fd; }
+.app-recycle .rb__row.is-sel { background: var(--select); color: var(--select-ink); }
+.app-recycle .rb__row.is-sel .rb__cell { color: var(--select-ink); }
+.app-recycle .rb__rows:focus .rb__row.is-active { border: 1px dotted #000; }
+.app-recycle .rb__rows:focus .rb__row.is-sel.is-active { border-color: #fff; }
+.app-recycle .rb__row.is-leaving { pointer-events: none; }
+.app-recycle .rb__row.is-nope { animation: rbNope .42s ease; }
+@keyframes rbNope {
+  15% { transform: translateX(-6px); background: #fde3df; } 35% { transform: translateX(5px); }
+  55% { transform: translateX(-3px); } 75% { transform: translateX(2px); }
+}
+.app-recycle .rb__cell { min-width: 0; padding: 2px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink-2); }
+.app-recycle .rb__cell--name { display: flex; align-items: center; gap: 6px; color: var(--ink); }
+.app-recycle .rb__cell--size { text-align: right; font-variant-numeric: tabular-nums; }
+.app-recycle .rb__cell--when { font-variant-numeric: tabular-nums; }
+.app-recycle .rb__icon { flex: none; display: grid; }
+.app-recycle .rb__icon svg { width: 20px; height: 20px; }
+.app-recycle .rb__nametext { display: grid; min-width: 0; }
+.app-recycle .rb__fname { overflow: hidden; text-overflow: ellipsis; }
+.app-recycle .rb__sub { display: none; font-size: 11px; opacity: .75; overflow: hidden; text-overflow: ellipsis; }
+
+/* narrow windows: name + size, location under the name */
+@container (max-width: 560px) {
+  .app-recycle .rb__list { --rb-cols: minmax(0, 1fr) 72px; }
+  .app-recycle .rb__th[data-key='from'], .app-recycle .rb__th[data-key='when'],
+  .app-recycle .rb__cell--from, .app-recycle .rb__cell--when { display: none; }
+  .app-recycle .rb__row { min-height: 42px; }
+  .app-recycle .rb__sub { display: block; }
+  .app-recycle .rb__icon svg { width: 28px; height: 28px; }
+}
+
+/* empty state -------------------------------------------------------- */
+.app-recycle .rb__empty {
+  flex: 1; display: grid; place-content: center; justify-items: center; gap: 8px;
+  padding: 24px; text-align: center;
+}
+.app-recycle .rb__empty.is-in { animation: rbEmptyIn .6s var(--ease-out) both; }
+@keyframes rbEmptyIn { from { opacity: 0; transform: translateY(10px) scale(.96); } }
+.app-recycle .rb__emptyicon svg { width: 72px; height: 72px; filter: drop-shadow(0 4px 6px rgba(0, 30, 80, .18)); }
+.app-recycle .rb__emptytitle { font-size: 15px; font-weight: 700; color: #0c3aa4; }
+.app-recycle .rb__emptysub { max-width: 34ch; font-size: 12px; color: var(--ink-3); }
+
+.app-recycle .rb__fire { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 4; }
+.app-recycle.is-burning .rb__rows { overflow: hidden; }
+
+/* preview pane ------------------------------------------------------- */
+.app-recycle .rb__preview {
+  position: absolute; top: 0; right: 0; bottom: 0; z-index: 6;
+  width: min(340px, 100%);
+  display: flex; flex-direction: column;
+  background: var(--face);
+  border-left: 1px solid #a8a490;
+  box-shadow: -8px 0 24px rgba(0, 20, 60, .22);
+  animation: rbSlide .26s var(--ease-out);
+}
+@keyframes rbSlide { from { transform: translateX(30px); opacity: 0; } }
+.app-recycle .rb__pvhead {
+  flex: none; display: flex; align-items: center; gap: 10px; padding: 10px 8px 8px 12px;
+  border-bottom: 1px solid #d6d2c2;
+}
+.app-recycle .rb__pvicon { flex: none; display: grid; }
+.app-recycle .rb__pvicon svg { width: 32px; height: 32px; }
+.app-recycle .rb__pvwho { flex: 1; min-width: 0; }
+.app-recycle .rb__pvtitle { font-size: 13px; font-weight: 700; overflow-wrap: anywhere; }
+.app-recycle .rb__pvmeta { font-size: 11px; color: var(--ink-3); overflow-wrap: anywhere; }
+.app-recycle .rb__pvx {
+  flex: none; align-self: flex-start; width: 24px; height: 24px; padding: 0;
+  border: 1px solid #b8b39b; border-radius: 3px; background: linear-gradient(#fff, #ecebe6);
+  font-size: 16px; line-height: 1;
+}
+.app-recycle .rb__pvtext {
+  flex: 1; min-height: 0; margin: 10px 12px 0; padding: 10px 12px; overflow: auto;
+  border: 1px solid #7f9db9; background: #fff;
+  font: 12px/1.6 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; color: #222;
+}
+.app-recycle .rb__pvtext:focus-visible { outline: none; border-color: #316ac5; box-shadow: 0 0 0 1px #316ac5; }
+.app-recycle .rb__pvbtns { flex: none; display: flex; justify-content: flex-end; gap: 6px; padding: 10px 12px 12px; }
+
+/* confirm dialog ----------------------------------------------------- */
+.app-recycle .rb__modal {
+  position: absolute; inset: 0; z-index: 20;
+  display: grid; place-items: center; padding: 16px;
+  background: rgba(30, 40, 70, .28);
+  animation: rbFade .15s ease;
+}
+@keyframes rbFade { from { opacity: 0; } }
+.app-recycle .rb__dialog {
+  width: min(380px, 100%);
+  border: 1px solid var(--frame); border-radius: 7px 7px 3px 3px;
+  background: var(--face); box-shadow: var(--shadow-win);
+  animation: rbPop .2s var(--ease-out);
+}
+@keyframes rbPop { from { opacity: 0; transform: scale(.94) translateY(6px); } }
+.app-recycle .rb__dialogbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 4px 4px 4px 9px; border-radius: 6px 6px 0 0;
+  background: linear-gradient(var(--title-1), var(--title-2) 50%, var(--title-3));
+  color: #fff; font-weight: 700; font-size: 12.5px; text-shadow: 0 1px 1px rgba(0,0,0,.4);
+}
+.app-recycle .rb__dialogx {
+  display: grid; place-items: center; width: 22px; height: 22px; padding: 0;
+  border: 1px solid #fff; border-radius: 3px; color: #fff; font-size: 16px; line-height: 1;
+  background: linear-gradient(135deg, #f19a7c, #e2553a 55%, #c03a1e);
+}
+.app-recycle .rb__dialogbody { display: flex; gap: 12px; padding: 14px 14px 8px; font-size: 12.5px; line-height: 1.5; }
+.app-recycle .rb__dialogbody small { color: var(--ink-3); }
+.app-recycle .rb__dialogicon { flex: none; }
+.app-recycle .rb__dialogicon svg { width: 40px; height: 40px; }
+.app-recycle .rb__dialogbtns { display: flex; justify-content: flex-end; gap: 6px; padding: 8px 14px 14px; }
+
+@media (max-width: 720px) {
+  .app-recycle .rb__tool { min-height: 40px; }
+}
+
+/* the restored file flying out (lives in os.fx) ----------------------- */
+.app-recycle-fly {
+  position: fixed; left: 0; top: 0;
+  display: grid; justify-items: center; gap: 2px;
+  pointer-events: none; will-change: transform, opacity;
+  filter: drop-shadow(0 6px 8px rgba(0, 20, 60, .35));
+}
+.app-recycle-fly svg { width: 40px; height: 40px; }
+.app-recycle-fly span {
+  max-width: 140px; padding: 1px 5px; border-radius: 2px;
+  background: var(--select); color: #fff; font: 11px var(--font-ui);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
