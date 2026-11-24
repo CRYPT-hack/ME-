@@ -101,6 +101,14 @@ function build(canvas, renderer, reducedMotion) {
   let hamster = null;
   const hamAnchor = new THREE.Vector3();
   let hamH = 1;
+  // wandering while music plays: he walks between random spots on the hills
+  const hamPos = new THREE.Vector3();
+  const hamGoal = new THREE.Vector3();
+  const hamView = new THREE.Vector3();
+  let hamScale = 0;      // world height per unit of view depth
+  let hamPlaced = false;
+  let vibe = 0;          // 0..1, rises while music keeps playing
+  let walking = false, walkAmt = 0, pauseUntil = 0;
   const clock = () => performance.now() / 1000;
 
   // ── layout ──
@@ -155,8 +163,60 @@ function build(canvas, renderer, reducedMotion) {
     const tanY = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
     const px = THREE.MathUtils.clamp(height * .085, 54, 104);
     hamH = (px / height) * 2 * depth * tanY;
-    hamster.place(hamAnchor, hamH);
-    S.uHam.value.set(hamAnchor.x, hamAnchor.z, hamH * hamster.aspect * .62, .55);
+    hamScale = hamH / Math.max(depth, 1e-3);
+    if (!hamPlaced || reducedMotion) { hamPos.copy(hamAnchor); hamGoal.copy(hamAnchor); hamPlaced = true; }
+    putHamster();
+  }
+
+  function putHamster() {
+    const depth = -hamView.copy(hamPos).applyMatrix4(camera.matrixWorldInverse).z;
+    const h = hamScale * Math.max(depth, .5);
+    hamster.place(hamPos, h);
+    S.uHam.value.set(hamPos.x, hamPos.z, h * hamster.aspect * .62, S.uHam.value.w || .55);
+  }
+
+  /** A random spot on the hills, clear of the desktop icons on the left. */
+  function pickSpot(out) {
+    for (let i = 0; i < 6; i++) {
+      const nx = -.45 + Math.random() * 1.3;
+      const ny = -.42 - Math.random() * .38;
+      if (groundAt(nx, ny, out)) return true;
+    }
+    return false;
+  }
+
+  function wander(dt, now) {
+    if (!hamster || !hamPlaced || reducedMotion) return;
+    const playing = level > .04;
+    vibe += ((playing ? 1 : 0) - vibe) * (1 - Math.exp(-dt * (playing ? .9 : .5)));
+    if (vibe > .35) {
+      if (!walking && now > pauseUntil && pickSpot(hamGoal)) walking = true;
+    } else if (vibe < .2 && hamPos.distanceToSquared(hamAnchor) > 1e-4) {
+      hamGoal.copy(hamAnchor); walking = true; // music stopped: head home
+    }
+    if (walking) {
+      const dx = hamGoal.x - hamPos.x, dz = hamGoal.z - hamPos.z;
+      const dist = Math.hypot(dx, dz);
+      const depth = -hamView.copy(hamPos).applyMatrix4(camera.matrixWorldInverse).z;
+      const speed = hamScale * Math.max(depth, .5) * (1.1 + level * .9);
+      if (dist <= speed * dt || dist < 1e-3) {
+        hamPos.x = hamGoal.x; hamPos.z = hamGoal.z;
+        walking = false;
+        pauseUntil = now + 1.6 + Math.random() * 2.8; // stop and vibe for a bit
+      } else {
+        hamPos.x += (dx / dist) * speed * dt;
+        hamPos.z += (dz / dist) * speed * dt;
+        // face the way he walks (screen-space direction)
+        const sx = hamView.copy(hamGoal).applyMatrix4(camera.matrixWorldInverse).x
+          - tmp.copy(hamPos).applyMatrix4(camera.matrixWorldInverse).x;
+        if (Math.abs(sx) > 1e-4) hamster.face(sx > 0 ? -1 : 1);
+      }
+      hamPos.y = meadow.heightAt(hamPos.x, hamPos.z);
+    } else if (vibe < .2) {
+      hamster.face(1);
+    }
+    walkAmt += ((walking ? 1 : 0) - walkAmt) * (1 - Math.exp(-dt * 8));
+    putHamster();
   }
 
   function resize() {
@@ -194,7 +254,8 @@ function build(canvas, renderer, reducedMotion) {
     S.uFlare.value = flare;
     beat += dt * (1.4 + level * 6.4);
     if (hamster) {
-      const hop = hamster.update(time, beat, level, flare);
+      wander(dt, now);
+      const hop = hamster.update(time, beat, level, flare, walkAmt, vibe);
       S.uHam.value.w = .55 * Math.max(.25, 1 - hop * 3.2);
     }
   }

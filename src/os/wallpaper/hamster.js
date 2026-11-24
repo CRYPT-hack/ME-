@@ -200,12 +200,12 @@ export function createHamster(canvas, sits) {
       uAnchor: { value: new THREE.Vector3() },
       uSize: { value: new THREE.Vector2(aspect, 1) },
       uSink: { value: sits },
-      uHop: { value: 0 }, uTilt: { value: 0 }, uSquash: { value: 0 },
+      uHop: { value: 0 }, uTilt: { value: 0 }, uSquash: { value: 0 }, uFlip: { value: 1 },
     },
     vertexShader: /* glsl */`
       uniform vec3 uAnchor;
       uniform vec2 uSize;
-      uniform float uSink, uHop, uTilt, uSquash;
+      uniform float uSink, uHop, uTilt, uSquash, uFlip;
       varying vec2 vUv;
       void main() {
         vec4 mv = viewMatrix * vec4(uAnchor, 1.0);
@@ -214,7 +214,7 @@ export function createHamster(canvas, sits) {
         float c = cos(uTilt), s = sin(uTilt);
         q = vec2(c * q.x - s * q.y, s * q.x + c * q.y);
         mv.xy += q * uSize + vec2(0.0, uHop * uSize.y);
-        vUv = vec2(.5 - position.x, position.y + .5); // mirrored: it faces into the scene
+        vUv = vec2(.5 - position.x * uFlip, position.y + .5); // mirrored: it faces into the scene; uFlip turns it around
         gl_Position = projectionMatrix * mv;
       }`,
     fragmentShader: /* glsl */`
@@ -241,14 +241,30 @@ export function createHamster(canvas, sits) {
       u.uAnchor.value.copy(anchor);
       u.uSize.value.set(height * aspect, height);
     },
-    /** t: seconds, beat: phase that runs faster with music, level 0..1, flare 0..1. */
-    update(t, beat, level, flare) {
+    /** Face left (-1) or right (1); eased so it turns rather than snaps. */
+    face(dir) { this._face = dir; },
+    /**
+     * t: seconds, beat: phase that runs faster with music, level 0..1,
+     * flare 0..1, walk 0..1 (moving), vibe 0..1 (music has been on a while).
+     */
+    update(t, beat, level, flare, walk = 0, vibe = 0) {
+      const f = this._face ?? 1;
+      u.uFlip.value += (f - u.uFlip.value) * .18;
+      if (Math.abs(u.uFlip.value) < .08) u.uFlip.value = .08 * Math.sign(f);
       const bop = Math.pow(Math.abs(Math.sin(beat)), 1.6);
-      const hop = bop * level * .16 + Math.sin(Math.min(flare, 1) * Math.PI) * .22 * (flare > 0 ? 1 : 0);
-      // a gentle idle bob, even with no music
+      const groove = level * (.6 + vibe * .8);
+      // walking: quick little hops with a waddle
+      const stepPh = t * 11;
+      const stepHop = Math.abs(Math.sin(stepPh)) * .14 * walk;
+      // standing and vibing: head-bang on the beat, sway on the bar
+      const dance = 1 - walk;
+      const hop = bop * groove * .2 * dance + stepHop
+        + Math.sin(Math.min(flare, 1) * Math.PI) * .22 * (flare > 0 ? 1 : 0);
       u.uHop.value = hop + (.5 + .5 * Math.sin(t * 1.8)) * .025;
-      u.uSquash.value = Math.sin(t * 2.1) * .025 + (bop - .5) * level * .08;
-      u.uTilt.value = Math.sin(t * 1.3) * .035 + Math.sin(beat * .5) * level * .07;
+      u.uSquash.value = Math.sin(t * 2.1) * .025 + (bop - .5) * groove * .16 * dance - stepHop * .3;
+      u.uTilt.value = Math.sin(t * 1.3) * .035
+        + Math.sin(beat * .5) * groove * .22 * dance
+        + Math.sin(stepPh) * .12 * walk;
       return hop;
     },
     dispose() {
