@@ -32,7 +32,7 @@ export const profile = {
   // Steam. `profileUrl` is the public profile link
   // (https://steamcommunity.com/id/<name> or /profiles/<steamid64>).
   steam: {
-    profileUrl: '',
+    profileUrl: 'https://steamcommunity.com/profiles/76561199164379614/',
     personaName: 'CRYPT-hack',
     // Shown on the Steam app's shelf. Hours are yours to fill in; leave 0 to hide.
     favorites: [
